@@ -22,7 +22,7 @@ With no `.env`, the app runs in **demo mode**: data lives in this browser only. 
 5. **Project Settings → API**: copy the **Project URL** and the **anon public** key.
 
 ### 2. GitHub
-Create a repo and push this folder (`node_modules`, `dist` and `.env` are git-ignored).
+The source code is hosted at [daprinceniko-droid/connectassist](https://github.com/daprinceniko-droid/connectassist). `node_modules`, `dist`, `.env`, and TypeScript build-info files are git-ignored.
 
 ### 3. Netlify
 1. Add new site → Import from GitHub → pick the repo. Build settings are read from `netlify.toml`.
