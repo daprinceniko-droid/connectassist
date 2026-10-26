@@ -12,7 +12,7 @@ import Rundown from './pages/Rundown'
 import Contacts from './pages/Contacts'
 import Search from './pages/Search'
 import Shared from './pages/Shared'
-import FloorPlanSoon from './pages/FloorPlanSoon'
+import FloorPlan from './pages/FloorPlan'
 
 function Private() {
   const { user, loading } = useAuth()
@@ -31,7 +31,7 @@ function Private() {
       <Route path="/events/:id/edit" element={<EventForm />} />
       <Route path="/events/:id/update" element={<PostEvent />} />
       <Route path="/events/:id/rundown" element={<Rundown />} />
-      <Route path="/events/:id/floorplan" element={<FloorPlanSoon />} />
+      <Route path="/events/:id/floorplan" element={<FloorPlan />} />
       <Route path="/rundown" element={<Rundown />} />
       <Route path="/contacts" element={<Contacts />} />
       <Route path="*" element={<Navigate to="/" replace />} />

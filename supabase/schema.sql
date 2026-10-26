@@ -1,4 +1,4 @@
--- ConnectAssist V1 schema. Run once in Supabase → SQL Editor.
+-- ConnectAssist schema. Safe to re-run: paste the whole file into Supabase → SQL Editor and click Run.
 create extension if not exists pgcrypto;
 
 create table if not exists contacts (
@@ -38,13 +38,24 @@ create table if not exists events (
 );
 create index if not exists events_date_idx on events (date desc);
 
+create table if not exists floor_plan_presets (
+  id uuid primary key default gen_random_uuid(),
+  name text not null,
+  room text not null,
+  items jsonb not null default '[]',
+  created_at timestamptz not null default now()
+);
+
 -- Only the two signed-in users (Pawl + the Connector Intern) can touch data.
 alter table contacts enable row level security;
 alter table events enable row level security;
+alter table floor_plan_presets enable row level security;
 drop policy if exists "team full access" on contacts;
 drop policy if exists "team full access" on events;
+drop policy if exists "team full access" on floor_plan_presets;
 create policy "team full access" on contacts for all to authenticated using (true) with check (true);
 create policy "team full access" on events for all to authenticated using (true) with check (true);
+create policy "team full access" on floor_plan_presets for all to authenticated using (true) with check (true);
 
 -- GDPR: deleting a contact also removes it from every event that referenced it.
 create or replace function scrub_deleted_contact() returns trigger language plpgsql as $$
@@ -62,7 +73,7 @@ language sql security definer set search_path = public as $$
   select jsonb_build_object(
     'name', e.name, 'date', e.date, 'time', e.time, 'room', e.room, 'type', e.type,
     'expectedGuests', e.expected_guests, 'notes', e.notes, 'needsFloorPlan', e.needs_floor_plan,
-    'schedule', e.schedule,
+    'schedule', e.schedule, 'floorPlan', case when e.needs_floor_plan then e.floor_plan else null end,
     'contacts', coalesce((select jsonb_agg(jsonb_build_object('name', c.name, 'category', c.category))
                           from contacts c where c.id = any(e.contact_ids)), '[]'::jsonb)
   ) from events e where e.share_token = p_token and p_token is not null and length(p_token) >= 12;

@@ -3,6 +3,8 @@ import { Link, useParams } from 'react-router-dom'
 import { useStore } from '../state/StoreProvider'
 import { Back } from '../components/ui'
 import NotesBox from '../components/NotesBox'
+import PlanSvg from '../components/PlanSvg'
+import { statLabel } from '../lib/plan'
 import { fmtFull, fmtShort } from '../lib/dates'
 import { isUpcoming, needsUpdate, pct, peopleOf } from '../lib/select'
 
@@ -85,9 +87,12 @@ export default function EventPage() {
           {e.needsFloorPlan && (
             <section className="card" aria-label="Floor plan used">
               <div className="card-head"><span className="eyebrow">Floor plan used</span></div>
-              <div className="fp-preview" aria-hidden style={{ display: 'grid', placeItems: 'center', color: '#8a8a8a', fontSize: 14 }}>No floor plan saved yet</div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 14 }}>
-                <b>{e.room}</b><Link className="link-arrow" to={`/events/${e.id}/floorplan`}>Open ↗</Link>
+              {e.floorPlan
+                ? <Link to={`/events/${e.id}/floorplan`} className="fp-box" style={{ display: 'block' }}><PlanSvg plan={e.floorPlan} /></Link>
+                : <div className="fp-preview" aria-hidden style={{ display: 'grid', placeItems: 'center', color: '#8a8a8a', fontSize: 14, aspectRatio: 2.2 }}>No floor plan saved yet</div>}
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 14, gap: 10 }}>
+                <b>{e.floorPlan ? `${e.floorPlan.basedOn ?? 'Custom layout'} · ${statLabel(e.floorPlan.items).split(' · ')[0]}` : e.room}</b>
+                <Link className="link-arrow" to={`/events/${e.id}/floorplan`}>{e.floorPlan ? 'Open' : 'Create'} ↗</Link>
               </div>
             </section>)}
           <section className="card" aria-label="Rundown">

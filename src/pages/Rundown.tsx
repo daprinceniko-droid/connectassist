@@ -4,6 +4,8 @@ import { useStore } from '../state/StoreProvider'
 import { useToast } from '../state/ToastProvider'
 import { Back, Modal } from '../components/ui'
 import NotesBox from '../components/NotesBox'
+import PlanSvg from '../components/PlanSvg'
+import { statLabel } from '../lib/plan'
 import { OWNERS } from '../config'
 import { fmtShort, uid } from '../lib/dates'
 import { nextUp, peopleOf } from '../lib/select'
@@ -106,9 +108,14 @@ export default function Rundown() {
         <div className="stack">
           {e.needsFloorPlan && (
             <section className="card" aria-label="Floor plan">
-              <div className="card-head"><span className="eyebrow">Floor plan</span><span className="pill dark">To add</span></div>
-              <Link to={`/events/${e.id}/floorplan`} className="drop"><span className="plus">+</span><b>Add floor plan</b><span>Pick a preset or build one</span></Link>
-              <button className="btn sm" style={{ marginTop: 14 }} onClick={() => patchEvent(e.id, { needsFloorPlan: false })}>This event doesn’t need one</button>
+              <div className="card-head"><span className="eyebrow">Floor plan</span>{e.floorPlan ? <span className="pill">✓ Added</span> : <span className="pill dark">To add</span>}</div>
+              {e.floorPlan ? (<>
+                <Link to={`/events/${e.id}/floorplan`} className="fp-box" style={{ display: 'block' }}><PlanSvg plan={e.floorPlan} /></Link>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 14, gap: 10 }}><b>{e.floorPlan.basedOn ?? 'Custom layout'} · {statLabel(e.floorPlan.items).split(' · ')[0]}</b><Link className="link-arrow" to={`/events/${e.id}/floorplan`}>Edit ↗</Link></div>
+              </>) : (<>
+                <Link to={`/events/${e.id}/floorplan`} className="drop"><span className="plus">+</span><b>Add floor plan</b><span>Pick a preset or build one</span></Link>
+                <button className="btn sm" style={{ marginTop: 14 }} onClick={() => patchEvent(e.id, { needsFloorPlan: false })}>This event doesn’t need one</button>
+              </>)}
             </section>)}
           <section className="card" aria-label="Key details">
             <div className="card-head"><span className="eyebrow">Key details</span><span className="pill">✓ Auto-filled</span></div>

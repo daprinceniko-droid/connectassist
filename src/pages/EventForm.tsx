@@ -8,6 +8,8 @@ import { EVENT_TYPES, type EventRec, type EventType } from '../types'
 import { todayISO, uid } from '../lib/dates'
 import { defaultTodos, generateSchedule } from '../lib/schedule'
 import { byDateDesc } from '../lib/select'
+import { clonePlan } from '../lib/plan'
+import type { FloorPlan } from '../types'
 
 async function resizeImage(file: File, max = 900): Promise<string> {
   const url = URL.createObjectURL(file)
@@ -42,6 +44,7 @@ export default function EventForm() {
   const [q, setQ] = useState('')
   const [open, setOpen] = useState(false)
   const [from, setFrom] = useState('')
+  const [srcPlan, setSrcPlan] = useState<FloorPlan | null>(null)
   const [errs, setErrs] = useState<Record<string, string>>({})
   const [confirmDel, setConfirmDel] = useState(false)
   const file = useRef<HTMLInputElement>(null)
@@ -50,7 +53,7 @@ export default function EventForm() {
   const applyFrom = (srcId: string) => {
     const s = events.find((e) => e.id === srcId); if (!s) return
     setType(s.type); setRoom(s.room); setGuests(s.expectedGuests?.toString() ?? ''); setNeedsFP(s.needsFloorPlan); setFpTouched(true)
-    setContactIds(s.contactIds); setFrom(srcId); toast(`Started from ${s.name}`)
+    setContactIds(s.contactIds); setFrom(srcId); setSrcPlan(s.floorPlan); toast(`Started from ${s.name}`)
   }
   useEffect(() => { const f = sp.get('from'); if (f && !editing) applyFrom(f) /* eslint-disable-next-line */ }, [])
   useEffect(() => { if (!fpTouched) setNeedsFP(type !== 'Active') }, [type, fpTouched])
@@ -77,7 +80,7 @@ export default function EventForm() {
       toast(rebuild ? 'Event updated. Your rundown was rebuilt' : 'Event updated'); nav(`/events/${editing.id}`)
     } else {
       const rec: EventRec = {
-        id: uid(), ...base, actualGuests: null, rating: null, reflection: '', floorPlan: null, staffCount: null,
+        id: uid(), ...base, actualGuests: null, rating: null, reflection: '', floorPlan: srcPlan && needsFP && srcPlan.room === room ? clonePlan(srcPlan) : null, staffCount: null,
         schedule: generateSchedule({ type, time, hasDJ, needsFloorPlan: needsFP }),
         todos: defaultTodos({ type, needsFloorPlan: needsFP, hasDJ }), shareToken: null, isSample: false, createdAt: new Date().toISOString(),
       }
@@ -156,7 +159,7 @@ export default function EventForm() {
           {!editing && (
             <div className="card dark" style={{ padding: 24 }}>
               <h3 style={{ margin: 0, fontSize: 22 }}>Start from a past event</h3>
-              <p className="muted" style={{ margin: '4px 0 16px', color: '#a8a8a8', fontSize: 14 }}>Reuse its floor plan setting and vendors</p>
+              <p className="muted" style={{ margin: '4px 0 16px', color: '#a8a8a8', fontSize: 14 }}>Reuse its floor plan, room and vendors</p>
               <div style={{ display: 'flex', gap: 12 }}>
                 <select className="select" aria-label="Past event" style={{ background: '#222', color: '#fff', backgroundImage: undefined }} value={from} onChange={(e) => setFrom(e.target.value)}>
                   <option value="">None — start blank</option>{past.map((e) => <option key={e.id} value={e.id}>{e.name}</option>)}</select>

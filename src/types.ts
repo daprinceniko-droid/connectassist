@@ -31,7 +31,7 @@ export interface EventRec {
   notes: string
   coverUrl: string | null
   needsFloorPlan: boolean
-  floorPlan: unknown | null // reserved for the floor plan builder
+  floorPlan: FloorPlan | null
   staffCount: number | null
   schedule: ScheduleItem[]
   todos: Todo[]
@@ -63,5 +63,15 @@ export interface SharedEvent {
   notes: string
   needsFloorPlan: boolean
   schedule: ScheduleItem[]
+  floorPlan: FloorPlan | null
   contacts: { name: string; category: string }[]
 }
+
+export type PlanKind = 'round' | 'long' | 'sofa' | 'stage' | 'bar' | 'plant' | 'dj' | 'door' | 'seating' | 'custom'
+/** All sizes in centimetres; x/y are the item's centre. */
+export interface PlanItem {
+  id: string; kind: PlanKind; x: number; y: number; w: number; h: number; rot: number
+  seats?: number; cols?: number; rows?: number; label?: string
+}
+export interface FloorPlan { room: string; items: PlanItem[]; basedOn?: string }
+export interface Preset { id: string; name: string; room: string; items: PlanItem[]; createdAt: string }

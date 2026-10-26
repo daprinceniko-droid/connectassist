@@ -1,4 +1,4 @@
-import type { Contact, ContactCategory, EventRec, EventType, Rating, SharedEvent } from '../types'
+import type { Contact, ContactCategory, EventRec, EventType, Preset, Rating, SharedEvent } from '../types'
 import type { Db } from './db'
 import { supabase, supabaseConfigured } from './supabaseClient'
 export { supabaseConfigured }
@@ -26,22 +26,27 @@ const contactToRow = (c: Contact) => ({
   id: c.id, name: c.name, category: c.category, speciality: c.speciality, email: c.email,
   phone: c.phone, notes: c.notes, is_sample: c.isSample,
 })
+const presetFromRow = (r: any): Preset => ({ id: r.id, name: r.name, room: r.room, items: r.items ?? [], createdAt: r.created_at })
 const check = ({ error }: { error: { message: string } | null }) => { if (error) throw new Error(error.message) }
 
 export const supabaseDb: Db = {
   mode: 'supabase',
   async loadAll() {
-    const [ev, co] = await Promise.all([
+    const [ev, co, pr] = await Promise.all([
       supabase.from('events').select('*').order('date', { ascending: false }),
       supabase.from('contacts').select('*').order('name'),
+      supabase.from('floor_plan_presets').select('*').order('name'),
     ])
     check(ev); check(co)
-    return { events: (ev.data ?? []).map(eventFromRow), contacts: (co.data ?? []).map(contactFromRow) }
+    // presets table is new: if it hasn't been created yet, keep the rest of the app working
+    return { events: (ev.data ?? []).map(eventFromRow), contacts: (co.data ?? []).map(contactFromRow), presets: pr.error ? [] : (pr.data ?? []).map(presetFromRow) }
   },
   async saveEvent(e) { check(await supabase.from('events').upsert(eventToRow(e))) },
   async deleteEvent(id) { check(await supabase.from('events').delete().eq('id', id)) },
   async saveContact(c) { check(await supabase.from('contacts').upsert(contactToRow(c))) },
   async deleteContact(id) { check(await supabase.from('contacts').delete().eq('id', id)) },
+  async savePreset(p) { check(await supabase.from('floor_plan_presets').upsert({ id: p.id, name: p.name, room: p.room, items: p.items })) },
+  async deletePreset(id) { check(await supabase.from('floor_plan_presets').delete().eq('id', id)) },
   async getShared(token) {
     const { data, error } = await supabase.rpc('get_shared_event', { p_token: token })
     if (error) throw new Error(error.message)

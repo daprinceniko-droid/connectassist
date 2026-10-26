@@ -1,47 +1,116 @@
-# ConnectAssist V1
+# ConnectAssist
 
-Event planning for the Connector at The Social Hub The Hague. React + TypeScript + Vite, Supabase for storage, hosted on Netlify.
+Event planning assistant for the Connector at **The Social Hub The Hague**. It replaces six scattered tools and a stack of printed rundowns with one visual web app: plan an event, get its rundown generated automatically, build the floor plan, share it with staff as a link or PDF, and look back at past events and vendors in seconds.
 
-**In this build:** dashboard, gallery, event maker (auto-builds the rundown), event pages, post-event update, rundown editor, PDF export, share links, vendor/contact directory, search.
-**Not yet:** floor plan builder (placeholder page), guest stats, guest-return tracking.
+Built as part of a Fontys ICT internship project. Primary user: Pawl Berger (Connector).
 
-## Run it locally (demo mode)
-```
+## Status: V1 (in testing with Pawl)
+
+| Feature | State |
+|---|---|
+| Dashboard (next up, to-dos, calendar, search) | Done |
+| Event maker (auto-generates the rundown) | Done |
+| Gallery (filters, search, cover photos) | Done |
+| Event page + post-event update (actual guests, rating, reflection) | Done |
+| Rundown editor + standard elements | Done |
+| **Floor plan builder** (5 rooms, drag and drop, presets, PDF) | Done |
+| PDF export + public share link (no staff accounts) | Done |
+| Vendor / contact directory | Done |
+| Guest stats | Planned |
+| Guest-return tracking | Out of scope until GDPR review |
+
+## Floor plan builder
+
+Rooms: **Restaurant & Bar, Meeting Space 1, Meeting Space 2+3, Catwalk, Lobby.**
+
+- Drag elements from the palette (or click to add): round table, long table, sofa, stage, bar, plant, DJ booth, door, seating block, plus custom elements.
+- Starter presets per room (Cabaret, Theatre, Lounge party, Blank) are generated to fit the room and flow around pillars. Layouts can be saved as your own presets.
+- Move by dragging or arrow keys, rotate, resize, duplicate, undo/redo, zoom. Seat and table counts update live.
+- Autosaves to the event, ticks the "Floor plan" to-do, shows on the event page, the rundown, the public share page, and exports as PDF.
+- Reusing a past event copies its floor plan.
+
+> **Room dimensions are estimates.** Real measurements go in `src/lib/rooms.ts` (width/height in cm plus pillars, storage, entrances). Every plan redraws automatically.
+
+## Tech stack
+
+- React 18 + TypeScript + Vite
+- Supabase (Postgres, Auth, Row Level Security) for persistent storage
+- Netlify for hosting, deployed from this repo
+- jsPDF for client-side PDF export
+
+## Run locally
+
+```bash
 npm install
 npm run dev
 ```
-With no `.env`, the app runs in **demo mode**: data lives in this browser only. Click "Load sample events" on the dashboard to try it.
 
-## Go live in ~15 minutes
+With no `.env` file the app runs in **demo mode**: data is stored in your browser only. Use "Load sample events" on the dashboard to try it.
 
-### 1. Supabase (the database)
-1. Create a free project at supabase.com. Pick the **EU (Frankfurt)** region (GDPR).
-2. **SQL Editor** → paste all of `supabase/schema.sql` → Run.
-3. **Authentication → Providers → Email**: turn **off** "Allow new users to sign up".
-4. **Authentication → Users → Add user**: create one for Pawl and one for the Connector Intern (tick "Auto confirm").
-5. **Project Settings → API**: copy the **Project URL** and the **anon public** key.
+To connect a real database, copy `.env.example` to `.env` and fill in:
 
-### 2. GitHub
-The source code is hosted at [daprinceniko-droid/connectassist](https://github.com/daprinceniko-droid/connectassist). `node_modules`, `dist`, `.env`, and TypeScript build-info files are git-ignored.
+```
+VITE_SUPABASE_URL=
+VITE_SUPABASE_ANON_KEY=
+```
 
-### 3. Netlify
-1. Add new site → Import from GitHub → pick the repo. Build settings are read from `netlify.toml`.
-2. **Site configuration → Environment variables**, add:
-   - `VITE_SUPABASE_URL` = your Project URL
-   - `VITE_SUPABASE_ANON_KEY` = your anon key
-3. Deploy. Open the site and sign in.
+## Set up the database
 
-The anon key is safe to ship in the browser: Row Level Security means only signed-in users can read or write, and the public share links can only fetch one rundown by its secret token.
+1. Create a Supabase project (EU region).
+2. Open **SQL Editor**, paste all of `supabase/schema.sql`, and run it. **The file is safe to re-run**, so after pulling an update just run it again.
+3. Under **Authentication**, disable public sign-ups and create one user each for the Connector and the Connector Intern.
 
-## Things Pawl may want to change (`src/config.ts`)
-- `ROOMS`: the room list in the event form
-- `WEEK_STARTS_ON`: 0 = Sunday first (as in the design), 1 = Monday first
-- `OWNERS`: suggestions for the "Who" field in the rundown
+## Deploy
 
-The default rundown timings live in `src/lib/schedule.ts` (one template per event type).
+1. Import this repo in Netlify. Build settings come from `netlify.toml`.
+2. Add `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` as environment variables.
+3. Every push to `main` deploys automatically.
 
-## Privacy notes (Professional Standard, section 4)
-- Contacts store name, category, speciality, email, phone, notes. Nothing else.
-- Removing a contact deletes it and unlinks it from every event (database trigger).
-- Share links show contact **names** only, never emails or phone numbers, and can be revoked ("Stop sharing").
-- Guest counts are numbers only. No personal guest data is stored.
+The anon key is safe in the browser: Row Level Security allows only signed-in users to read or write, and public share links can only fetch a single rundown by its secret token.
+
+## Configuration
+
+- `src/config.ts`: room list for the event form, week start day, rundown "who" suggestions
+- `src/lib/rooms.ts`: room dimensions and fixed features for the floor plan builder
+- `src/lib/schedule.ts`: default rundown timings per event type
+
+## Project structure
+
+```
+src/
+  pages/        one file per screen
+  components/   shared UI (modal, notes box, floor plan renderer)
+  state/        auth, store, toasts
+  data/         database layer (Supabase + browser fallback)
+  lib/          dates, schedule generator, floor plan logic, PDF, helpers
+supabase/
+  schema.sql    tables, security policies, share-link function (re-runnable)
+```
+
+## Privacy and ethics
+
+Follows the project's Professional Standard:
+
+- **Data minimisation:** contacts store name, category, speciality, email, phone and notes only.
+- **Right to removal:** deleting a contact removes it and unlinks it from every event (database trigger).
+- **No staff accounts:** staff view rundowns through a revocable link or PDF. Shared pages show vendor names only, never contact details.
+- **No personal guest data:** guest counts are plain numbers.
+- **Inclusive by default:** high contrast, large click targets, status always shown as text, keyboard-operable floor plan, single free-text name field.
+
+## Version control
+
+Small commits with a description of *what changed and why*, for example:
+
+```
+git add .
+git commit -m "Hide floor plan card when an event doesn't need one (Pawl feedback)"
+git push
+```
+
+## Roadmap
+
+1. Real room measurements for the floor plan builder
+2. Guest stats screen
+3. Brand colours from the TSH Brand Guide
+4. Test on-the-day access (paper vs phone) with staff
+5. Forward-looking for TSH IT: automatic sync with Monday / Eventbrite / Event Temple, guest-return tracking after GDPR review

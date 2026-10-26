@@ -253,3 +253,28 @@ h1.title { font-size: 48px; line-height: 1.05; letter-spacing: -0.03em; font-wei
 .demo-banner .btn { background: #fff; }
 .demo-banner .btn.primary { background: var(--ink); }
 .tile.soon .pill { background: #fff; color: #555; }
+
+/* Floor plan builder */
+.fp-grid { display: grid; grid-template-columns: 240px minmax(0, 1fr) 290px; gap: 24px; align-items: start; }
+.pal-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 14px 0; }
+.pal { background: #fff; border: 0; border-radius: 16px; padding: 14px 6px 12px; display: flex; flex-direction: column; align-items: center; gap: 8px; font-size: 13px; }
+.pal:hover { outline: 2px solid var(--ink); outline-offset: -2px; }
+.canvas-card { background: var(--card); border-radius: var(--r-card); padding: 20px; min-width: 0; }
+.canvas-bar { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 14px; }
+.fp-scroll { overflow: auto; max-height: 68vh; border-radius: 18px; }
+.canvas-foot { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: 12px; flex-wrap: wrap; }
+.canvas-foot .saved { margin: 0; }
+.zoom { background: #fff; border-radius: 20px; display: inline-flex; align-items: center; padding: 3px 6px; gap: 4px; font-size: 14px; }
+.zoom button { border: 0; background: none; width: 30px; height: 30px; border-radius: 50%; font-size: 17px; }
+.zoom button:hover:not(:disabled) { background: var(--card); } .zoom button:disabled { opacity: .35; cursor: default; }
+.zoom b { font-weight: 500; min-width: 44px; text-align: center; }
+.preset-list { display: flex; flex-direction: column; gap: 8px; }
+.preset-wrap { position: relative; }
+.preset { width: 100%; border: 0; border-radius: 16px; padding: 14px 18px; background: #262626; color: #fff; display: flex; justify-content: space-between; align-items: center; font-size: 16px; text-align: left; }
+.preset small { color: #a0a0a0; font-size: 13px; }
+.preset.on { background: #fff; color: var(--ink); } .preset.on small { color: #777; }
+.preset:not(.on):hover { background: #333; }
+.preset-wrap .preset { padding-right: 44px; }
+.preset-wrap .x { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); width: 26px; height: 26px; border-radius: 50%; border: 0; background: rgba(128,128,128,.25); color: inherit; line-height: 1; }
+.fp-box { background: #fff; border-radius: 18px; padding: 10px; }
+@media (max-width: 1180px) { .fp-grid { grid-template-columns: 1fr; } .pal-grid { grid-template-columns: repeat(4, 1fr); } }

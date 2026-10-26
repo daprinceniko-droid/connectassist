@@ -1,10 +1,10 @@
-import type { Contact, EventRec, SharedEvent } from '../types'
+import type { Contact, EventRec, Preset, SharedEvent } from '../types'
 import type { Db } from './db'
 
 const KEY = 'connectassist.v1'
-interface Blob { events: EventRec[]; contacts: Contact[] }
+interface Blob { events: EventRec[]; contacts: Contact[]; presets: Preset[] }
 const read = (): Blob => {
-  try { return JSON.parse(localStorage.getItem(KEY) || '') as Blob } catch { return { events: [], contacts: [] } }
+  try { const b = JSON.parse(localStorage.getItem(KEY) || '') as Blob; return { ...b, presets: b.presets ?? [] } } catch { return { events: [], contacts: [], presets: [] } }
 }
 const write = (b: Blob) => localStorage.setItem(KEY, JSON.stringify(b))
 const upsert = <T extends { id: string }>(list: T[], item: T) => {
@@ -22,25 +22,29 @@ export const localDb: Db = {
   async deleteContact(id) {
     const b = read()
     write({
+      ...b,
       contacts: b.contacts.filter((c) => c.id !== id),
       events: b.events.map((e) => ({ ...e, contactIds: e.contactIds.filter((x) => x !== id) })),
     })
   },
+  async savePreset(p) { const b = read(); write({ ...b, presets: upsert(b.presets, p) }) },
+  async deletePreset(id) { const b = read(); write({ ...b, presets: b.presets.filter((p) => p.id !== id) }) },
   async getShared(token): Promise<SharedEvent | null> {
     const b = read()
     const e = b.events.find((x) => x.shareToken && x.shareToken === token)
     if (!e) return null
     return {
       name: e.name, date: e.date, time: e.time, room: e.room, type: e.type,
-      expectedGuests: e.expectedGuests, notes: e.notes, needsFloorPlan: e.needsFloorPlan, schedule: e.schedule,
+      expectedGuests: e.expectedGuests, notes: e.notes, needsFloorPlan: e.needsFloorPlan, schedule: e.schedule, floorPlan: e.floorPlan,
       contacts: b.contacts.filter((c) => e.contactIds.includes(c.id)).map((c) => ({ name: c.name, category: c.category })),
     }
   },
-  async insertMany(events, contacts) { const b = read(); write({ events: [...b.events, ...events], contacts: [...b.contacts, ...contacts] }) },
+  async insertMany(events, contacts) { const b = read(); write({ ...b, events: [...b.events, ...events], contacts: [...b.contacts, ...contacts] }) },
   async deleteSample() {
     const b = read()
     const gone = new Set(b.contacts.filter((c) => c.isSample).map((c) => c.id))
     write({
+      ...b,
       contacts: b.contacts.filter((c) => !c.isSample),
       events: b.events.filter((e) => !e.isSample).map((e) => ({ ...e, contactIds: e.contactIds.filter((x) => !gone.has(x)) })),
     })

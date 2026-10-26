@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
-import type { Contact, EventRec } from '../types'
+import type { Contact, EventRec, Preset } from '../types'
 import { db } from '../data/db'
 import { buildSample } from '../data/sample'
 import { newShareToken } from '../lib/dates'
@@ -10,6 +10,9 @@ interface Store {
   loading: boolean
   events: EventRec[]
   contacts: Contact[]
+  presets: Preset[]
+  savePreset: (p: Preset) => Promise<void>
+  deletePreset: (id: string) => Promise<void>
   hasSample: boolean
   saveEvent: (e: EventRec) => Promise<void>
   patchEvent: (id: string, patch: Partial<EventRec>) => Promise<void>
@@ -30,12 +33,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true)
   const [events, setEvents] = useState<EventRec[]>([])
   const [contacts, setContacts] = useState<Contact[]>([])
+  const [presets, setPresets] = useState<Preset[]>([])
   const ev = useRef(events); ev.current = events
 
   const reload = useCallback(async () => {
     try {
       const d = await db.loadAll()
-      setEvents(d.events); setContacts(d.contacts)
+      setEvents(d.events); setContacts(d.contacts); setPresets(d.presets)
     } catch (e) {
       toast(`Couldn’t load your data: ${(e as Error).message}`, 'error')
     } finally { setLoading(false) }
@@ -63,6 +67,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       setEvents((l) => l.map((e) => ({ ...e, contactIds: e.contactIds.filter((x) => x !== id) })))
     }, () => db.deleteContact(id))
 
+  const savePreset = (p: Preset) => run(() => setPresets((l) => upsert(l, p)), () => db.savePreset(p))
+  const deletePreset = (id: string) => run(() => setPresets((l) => l.filter((p) => p.id !== id)), () => db.deletePreset(id))
+
   const ensureShareToken = async (id: string) => {
     const cur = ev.current.find((e) => e.id === id)
     if (!cur) throw new Error('Event not found')
@@ -87,7 +94,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const hasSample = events.some((e) => e.isSample) || contacts.some((c) => c.isSample)
   return (
-    <Ctx.Provider value={{ loading, events, contacts, hasSample, saveEvent, patchEvent, deleteEvent, saveContact, deleteContact, ensureShareToken, stopSharing, loadSample, removeSample }}>
+    <Ctx.Provider value={{ loading, events, contacts, presets, savePreset, deletePreset, hasSample, saveEvent, patchEvent, deleteEvent, saveContact, deleteContact, ensureShareToken, stopSharing, loadSample, removeSample }}>
       {children}
     </Ctx.Provider>
   )
