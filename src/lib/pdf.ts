@@ -96,7 +96,8 @@ export function drawPlan(doc: jsPDF, plan: FloorPlan, x0: number, y0: number, ma
   const fs = (cm: number) => Math.max(4.5, Math.min(11, cm * k * 2.835))
   const ink: RGB = [10, 10, 10]
   doc.setLineWidth(0.7); doc.setDrawColor(...ink); doc.setFillColor(255, 255, 255)
-  doc.roundedRect(X(0), Y(0), room.w * k, room.h * k, 3, 3, 'FD')
+  if (room.outline) polygon(doc, room.outline.map(([px, py]) => [X(px), Y(py)] as [number, number]), 'FD')
+  else doc.roundedRect(X(0), Y(0), room.w * k, room.h * k, 3, 3, 'FD')
   doc.setFont('helvetica', 'normal')
   for (const f of room.fixed) {
     if (f.kind === 'entrance') {
@@ -110,8 +111,10 @@ export function drawPlan(doc: jsPDF, plan: FloorPlan, x0: number, y0: number, ma
       continue
     }
     doc.setLineWidth(0.25); doc.setLineDashPattern([1.2, 1.2], 0); doc.setDrawColor(170, 170, 170); doc.setFillColor(236, 236, 236)
-    doc.rect(X(f.x), Y(f.y), f.w * k, f.h * k, 'FD'); doc.setLineDashPattern([], 0)
-    if (f.kind !== 'pillar') { doc.setFontSize(fs(20)); doc.setTextColor(138, 138, 138); doc.text(f.label, X(f.x + f.w / 2), Y(f.y + f.h / 2), { align: 'center', baseline: 'middle', angle: f.h > f.w * 1.8 ? 90 : 0 }) }
+    if (f.kind === 'pillar') doc.ellipse(X(f.x + f.w / 2), Y(f.y + f.h / 2), (f.w * k) / 2, (f.h * k) / 2, 'FD')
+    else doc.rect(X(f.x), Y(f.y), f.w * k, f.h * k, 'FD')
+    doc.setLineDashPattern([], 0)
+    if (f.kind !== 'pillar' && f.label) { doc.setFontSize(fs(20)); doc.setTextColor(138, 138, 138); doc.text(f.label, X(f.x + f.w / 2), Y(f.y + f.h / 2), { align: 'center', baseline: 'middle', angle: f.h > f.w * 1.8 ? 90 : 0 }) }
   }
   let n = 0
   for (const it of plan.items as PlanItem[]) {

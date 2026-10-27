@@ -17,8 +17,8 @@ function Fixture({ f }: { f: Fixed }) {
   const tall = f.h > f.w * 1.8
   return (
     <g style={{ pointerEvents: 'none' }}>
-      <rect x={f.x} y={f.y} width={f.w} height={f.h} rx={8} fill="#ececec" stroke="#b5b5b5" strokeDasharray="6 5" strokeWidth={1.2} {...NS} />
-      {f.kind !== 'pillar' && (
+      <rect x={f.x} y={f.y} width={f.w} height={f.h} rx={f.kind === 'pillar' ? f.w / 2 : 8} fill="#ececec" stroke="#b5b5b5" strokeDasharray="6 5" strokeWidth={1.2} {...NS} />
+      {f.kind !== 'pillar' && f.label && (
         <text x={cx} y={cy} textAnchor="middle" dominantBaseline="central" fontSize={22} fill="#8a8a8a" transform={tall ? `rotate(-90 ${cx} ${cy})` : undefined}>{f.label}</text>
       )}
     </g>
@@ -74,7 +74,9 @@ export default function PlanSvg({ plan, selected, handlers, svgRef, onBackground
     <svg ref={svgRef} className={className} viewBox={`${-P} ${-P} ${room.w + 2 * P} ${room.h + 2 * P}`} role="img"
       aria-label={`Floor plan of ${plan.room} with ${plan.items.length} elements`} style={{ display: 'block', width: '100%', height: 'auto', touchAction: handlers ? 'none' : undefined, userSelect: 'none' }}
       fontFamily="Inter Variable, Inter, system-ui, sans-serif" onPointerDown={onBackground} {...svgProps}>
-      <rect x={0} y={0} width={room.w} height={room.h} rx={24} fill="#fff" stroke={INK} strokeWidth={3} {...NS} />
+      {room.outline
+        ? <polygon points={room.outline.map((q) => q.join(',')).join(' ')} fill="#fff" stroke={INK} strokeWidth={3} strokeLinejoin="round" {...NS} />
+        : <rect x={0} y={0} width={room.w} height={room.h} rx={24} fill="#fff" stroke={INK} strokeWidth={3} {...NS} />}
       {room.fixed.filter((f) => f.kind !== 'entrance').map((f) => <Fixture key={f.id} f={f} />)}
       {room.fixed.filter((f) => f.kind === 'entrance').map((f) => <Entrance key={f.id} f={f} />)}
       {plan.items.map((it) => {

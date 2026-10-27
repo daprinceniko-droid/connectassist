@@ -49,7 +49,10 @@ export const clonePlan = (p: FloorPlan): FloorPlan => ({ ...p, items: cloneItems
 interface Box { x0: number; y0: number; x1: number; y1: number }
 const boxOf = (cx: number, cy: number, w: number, h: number): Box => ({ x0: cx - w / 2, y0: cy - h / 2, x1: cx + w / 2, y1: cy + h / 2 })
 const hit = (a: Box, b: Box) => a.x0 < b.x1 && a.x1 > b.x0 && a.y0 < b.y1 && a.y1 > b.y0
-const avoidBoxes = (r: RoomLayout): Box[] => r.fixed.map((f) => { const g = f.kind === 'entrance' ? 90 : 30; return { x0: f.x - g, y0: f.y - g, x1: f.x + f.w + g, y1: f.y + f.h + g } })
+const avoidBoxes = (r: RoomLayout): Box[] => [
+  ...r.fixed.map((f) => { const g = f.kind === 'entrance' ? 90 : 30; return { x0: f.x - g, y0: f.y - g, x1: f.x + f.w + g, y1: f.y + f.h + g } }),
+  ...(r.voids ?? []).map((v) => ({ x0: v.x - 30, y0: v.y - 30, x1: v.x + v.w + 30, y1: v.y + v.h + 30 })),
+]
 
 /** Fills a region with a grid, trying small shifts so the grid flows around pillars instead of losing seats. */
 function fillGrid(reg: Box, iw: number, ih: number, gx: number, gy: number, maxC: number, maxR: number, avoid: Box[], make: (x: number, y: number) => PlanItem) {
@@ -73,6 +76,7 @@ function fillGrid(reg: Box, iw: number, ih: number, gx: number, gy: number, maxC
 
 function stageAndRegion(room: RoomLayout) {
   const M = 80
+  if (room.preset) { const p = room.preset; return { stage: newItem('stage', p.stage.x, p.stage.y, { w: p.stage.w, h: p.stage.h }), reg: { ...p.reg } as Box, long: p.long } }
   if (room.h >= 500) {
     const sw = Math.min(450, room.w * 0.32), sh = 130
     return { stage: newItem('stage', snap(M + sw / 2), snap(M + sh / 2), { w: sw, h: sh }), reg: { x0: M, y0: M + sh + 70, x1: room.w - M, y1: room.h - M - 60 } as Box, long: false }
@@ -113,7 +117,7 @@ export function starterItems(roomName: string, name: string): PlanItem[] {
   const free = (it: PlanItem) => !avoid.some((a) => hit(a, boxOf(it.x, it.y, it.w, it.h)))
   const bh = long ? 400 : Math.min(420, room.h * 0.45)
   const bars = long
-    ? [newItem('bar', snap(reg.x1 - 200), room.h - 115, { w: bh, h: 70 })]
+    ? [newItem('bar', snap(reg.x1 - 200), snap(reg.y1 - 35), { w: bh, h: 70 })]
     : [newItem('bar', room.w - 115, snap(reg.y0 + bh / 2), { w: 70, h: bh }), newItem('bar', 115, snap(reg.y0 + bh / 2), { w: 70, h: bh })]
   const bar = bars.find(free)
   let r = { ...reg }

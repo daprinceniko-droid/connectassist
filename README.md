@@ -30,6 +30,7 @@ Rooms: **Restaurant & Bar, Meeting Space 1, Meeting Space 2+3, Catwalk, Lobby.**
 - Reusing a past event copies its floor plan.
 
 > **Room dimensions are estimates.** Real measurements go in `src/lib/rooms.ts` (width/height in cm plus pillars, storage, entrances). Every plan redraws automatically.
+
 ## Tech stack
 
 - React 18 + TypeScript + Vite
@@ -94,7 +95,7 @@ Follows the project's Professional Standard:
 - **Right to removal:** deleting a contact removes it and unlinks it from every event (database trigger).
 - **No staff accounts:** staff view rundowns through a revocable link or PDF. Shared pages show vendor names only, never contact details.
 - **No personal guest data:** guest counts are plain numbers.
-- **Inclusive by default:** high contrast, large click targets, status always shown as text, single free-text name field.
+- **Inclusive by default:** high contrast, large click targets, status always shown as text, keyboard-operable floor plan, single free-text name field.
 
 ## Version control
 

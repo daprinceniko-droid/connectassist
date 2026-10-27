@@ -5,7 +5,7 @@ import { useToast } from '../state/ToastProvider'
 import { Back, Modal } from '../components/ui'
 import PlanSvg, { type PlanHandlers } from '../components/PlanSvg'
 import { fmtShort, uid } from '../lib/dates'
-import { ROOM_NAMES, roomLayout } from '../lib/rooms'
+import { ROOM_NAMES, insideRoom, roomLayout } from '../lib/rooms'
 import { KIND_META, PALETTE, STARTERS, clampItem, itemName, newItem, planStats, snap, starterItems, statLabel } from '../lib/plan'
 import { downloadFloorPlanPdf } from '../lib/pdf'
 import type { FloorPlan, PlanItem, PlanKind } from '../types'
@@ -75,7 +75,7 @@ export default function FloorPlanPage() {
   const remove = () => { if (selected) { commit(edited(plan.items.filter((i) => i.id !== selected.id))); setSel(null) } }
   const duplicate = () => { if (selected) { const c = { ...selected, id: uid(), x: selected.x + 40, y: selected.y + 40 }; commit(edited([...plan.items, clampItem(c, room)])); setSel(c.id) } }
   const applyPreset = (name: string, items: PlanItem[]) => { commit({ room: plan.room, items: items.map((i) => ({ ...i, id: uid() })), basedOn: name }); setSel(null) }
-  const changeRoom = (r: string) => { const l = roomLayout(r); commit({ ...plan, room: r, items: plan.items.map((i) => clampItem(i, l)) }) }
+  const changeRoom = (r: string) => { if (r === plan.room) return; commit({ room: r, items: [] }); setSel(null) } // new room = clean slate (undo brings the old one back)
 
   const toSvg = (ev: { clientX: number; clientY: number }) => {
     const svg = svgEl.current!, pt = svg.createSVGPoint(); pt.x = ev.clientX; pt.y = ev.clientY
@@ -87,7 +87,7 @@ export default function FloorPlanPage() {
       const d = drag.current; if (!d || d.id !== it.id) return
       const p = toSvg(ev), nx = snap(p.x + d.dx), ny = snap(p.y + d.dy)
       const cur = planRef.current.items.find((i) => i.id === it.id)!
-      if (nx === cur.x && ny === cur.y) return
+      if ((nx === cur.x && ny === cur.y) || !insideRoom(room, nx, ny)) return
       if (!d.moved) { push(); d.moved = true }
       dirty.current = true
       setPlan({ ...planRef.current, basedOn: undefined, items: planRef.current.items.map((i) => (i.id === it.id ? clampItem({ ...i, x: nx, y: ny }, room) : i)) })
@@ -105,7 +105,7 @@ export default function FloorPlanPage() {
     if (ev.key === 'Delete' || ev.key === 'Backspace') { ev.preventDefault(); remove(); return }
     const step = ev.shiftKey ? 50 : 10
     const dir: Record<string, [number, number]> = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step] }
-    if (dir[ev.key]) { ev.preventDefault(); const [dx, dy] = dir[ev.key]; patchItem(clampItem({ ...selected, x: selected.x + dx, y: selected.y + dy }, room)) }
+    if (dir[ev.key]) { ev.preventDefault(); const [dx, dy] = dir[ev.key]; const m = clampItem({ ...selected, x: selected.x + dx, y: selected.y + dy }, room); if (insideRoom(room, m.x, m.y)) patchItem(m) }
   }
   const onDrop = (ev: DragEvent) => {
     ev.preventDefault(); const k = ev.dataTransfer.getData('text/plain') as PlanKind
