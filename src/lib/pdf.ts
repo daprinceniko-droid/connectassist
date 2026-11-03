@@ -1,64 +1,89 @@
 import type { jsPDF } from 'jspdf'
 import type { FloorPlan, PlanItem, SharedEvent } from '../types'
 import { fmtFull } from './dates'
+import { CONTACT_PERSON } from '../config'
+import { whenFull } from './select'
 import { roomLayout } from './rooms'
 import { canvasLabel, statLabel } from './plan'
 
-/** Client-side A4 rundown PDF. No server needed; works from the app and from the public share page. */
+type RGB = [number, number, number]
+
+/**
+ * Client-side A4 "Banquet Event Order" PDF. No server needed.
+ * Order: header + overview + key details, Event Timeline, Event Food, Beverage & Extras, Event Notes, then the floor plan (if the event has one).
+ */
 export async function downloadRundownPdf(e: SharedEvent) {
   const { jsPDF } = await import('jspdf')
   const doc = new jsPDF({ unit: 'mm', format: 'a4' })
   const W = 210, L = 18, R = W - 18
   let y = 22
-  const ink: [number, number, number] = [10, 10, 10]
-  const grey: [number, number, number] = [138, 138, 138]
-  const band: [number, number, number] = [243, 243, 243]
+  const ink: RGB = [10, 10, 10]
+  const grey: RGB = [138, 138, 138]
+  const band: RGB = [243, 243, 243]
   const ensure = (h: number) => { if (y + h > 280) { doc.addPage(); y = 22 } }
-  const label = (t: string) => { ensure(10); doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(...grey); doc.text(t.toUpperCase(), L, y, { charSpace: 0.6 }); y += 6 }
-
-  doc.setFont('helvetica', 'bold'); doc.setFontSize(26); doc.setTextColor(...ink)
-  const title = doc.splitTextToSize(e.name, R - L) as string[]
-  doc.text(title, L, y); y += title.length * 10
-  doc.setFont('helvetica', 'normal'); doc.setFontSize(11); doc.setTextColor(...grey)
-  doc.text([fmtFull(e.date), `doors ${e.time}`, e.room, e.type].filter(Boolean).join('  ·  '), L, y); y += 12
-
-  label('Schedule')
-  e.schedule.forEach((s, i) => {
-    ensure(10)
-    if (s.highlight) { doc.setFillColor(...ink) } else { doc.setFillColor(...band) }
-    doc.roundedRect(L, y - 5.4, R - L, 9, 2.5, 2.5, 'F')
-    doc.setFont('helvetica', 'bold'); doc.setFontSize(11); doc.setTextColor(...(s.highlight ? ([255, 255, 255] as [number, number, number]) : ink))
-    doc.text(s.time, L + 4, y)
-    doc.setFont('helvetica', s.highlight ? 'bold' : 'normal'); doc.text(s.title, L + 24, y)
-    doc.setFontSize(9); doc.setTextColor(...(s.highlight ? ([200, 200, 200] as [number, number, number]) : grey))
-    doc.text(s.owner, R - 4, y, { align: 'right' })
-    y += 11; void i
-  })
-  y += 4
-
-  label('Key details')
-  const dj = e.contacts.filter((c) => c.category === 'DJ').map((c) => c.name)
-  const vendors = e.contacts.filter((c) => c.category !== 'DJ').map((c) => c.name)
-  const rows: [string, string][] = [
-    ['Guests expected', e.expectedGuests != null ? String(e.expectedGuests) : 'To be confirmed'],
-    ['DJ', dj.join(', ') || 'To be confirmed'],
-    ['Vendors', vendors.join(', ') || 'None'],
-    ['Room', e.room || '—'],
-  ]
-  rows.forEach(([k, v]) => {
+  const label = (t: string) => { ensure(14); doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(...grey); doc.text(t.toUpperCase(), L, y, { charSpace: 0.6 }); y += 6 }
+  const paragraph = (text: string, empty: string) => {
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(11)
+    if (!text.trim()) { doc.setTextColor(...grey); ensure(8); doc.text(empty, L, y); y += 8; return }
+    doc.setTextColor(...ink)
+    for (const line of doc.splitTextToSize(text, R - L) as string[]) { ensure(6); doc.text(line, L, y); y += 5.6 }
+    y += 2
+  }
+  const rowsOf = (rows: [string, string][]) => rows.forEach(([k, v]) => {
     ensure(9)
     doc.setFont('helvetica', 'normal'); doc.setFontSize(10); doc.setTextColor(...grey); doc.text(k, L, y)
     doc.setFont('helvetica', 'bold'); doc.setTextColor(...ink); doc.text(v, R, y, { align: 'right', maxWidth: 110 })
     doc.setDrawColor(225, 225, 225); doc.line(L, y + 3, R, y + 3)
     y += 9
   })
-  y += 5
 
-  if (e.notes.trim()) {
-    label('Notes')
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(11); doc.setTextColor(...ink)
-    for (const line of doc.splitTextToSize(e.notes, R - L) as string[]) { ensure(6); doc.text(line, L, y); y += 5.6 }
-  }
+  // 1. Header, overview and key details
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(20); doc.setTextColor(...ink)
+  const title = doc.splitTextToSize(`Banquet Event Order: ${e.name}`, R - L) as string[]
+  doc.text(title, L, y); y += title.length * 9 + 6
+
+  label('Overview')
+  rowsOf([
+    ['Contact Person', CONTACT_PERSON],
+    ['Event Date', whenFull(e)],
+    ['Booked By', e.bookedBy?.trim() || '—'],
+  ])
+  y += 5
+  label('Key details')
+  const dj = e.contacts.filter((c) => c.category === 'DJ').map((c) => c.name)
+  const vendors = e.contacts.filter((c) => c.category !== 'DJ').map((c) => c.name)
+  rowsOf([
+    ['Guests expected', e.expectedGuests != null ? String(e.expectedGuests) : 'To be confirmed'],
+    ['DJ', dj.join(', ') || 'To be confirmed'],
+    ['Vendors', vendors.join(', ') || 'None'],
+    ['Room', e.room || '—'],
+  ])
+  y += 6
+
+  // 2. Event Timeline
+  label('Event Timeline')
+  if (e.schedule.length === 0) { doc.setFont('helvetica', 'normal'); doc.setFontSize(11); doc.setTextColor(...grey); doc.text('No timeline added.', L, y); y += 10 }
+  e.schedule.forEach((s) => {
+    ensure(11)
+    doc.setFillColor(...(s.highlight ? ink : band))
+    doc.roundedRect(L, y - 5.4, R - L, 9, 2.5, 2.5, 'F')
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(11); doc.setTextColor(...(s.highlight ? ([255, 255, 255] as RGB) : ink))
+    doc.text(s.time, L + 4, y)
+    doc.setFont('helvetica', s.highlight ? 'bold' : 'normal'); doc.text(s.title, L + 24, y)
+    doc.setFontSize(9); doc.setTextColor(...(s.highlight ? ([200, 200, 200] as RGB) : grey))
+    doc.text(s.owner, R - 4, y, { align: 'right' })
+    y += 11
+  })
+  y += 4
+
+  // 3. Event Food, Beverage & Extras
+  label('Event Food, Beverage & Extras')
+  paragraph(e.foodBeverage ?? '', 'Nothing added.')
+  y += 4
+
+  // 4. Event Notes
+  label('Event Notes')
+  paragraph(e.notes, 'No notes.')
 
   if (e.floorPlan && e.needsFloorPlan) {
     doc.addPage(); y = 22
@@ -72,14 +97,12 @@ export async function downloadRundownPdf(e: SharedEvent) {
   const n = doc.getNumberOfPages()
   for (let p = 1; p <= n; p++) {
     doc.setPage(p); doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(...grey)
-    doc.text('Rundown · The Social Hub The Hague · made with ConnectAssist', L, 290)
+    doc.text('Banquet Event Order · The Social Hub The Hague · made with ConnectAssist', L, 290)
     doc.text(`${p} / ${n}`, R, 290, { align: 'right' })
   }
-  doc.save(`Rundown - ${e.name.replace(/[^\w\- ]+/g, '')} - ${e.date}.pdf`)
+  doc.save(`BEO - ${e.name.replace(/[^\w\- ]+/g, '')} - ${e.date}.pdf`)
 }
 
-
-type RGB = [number, number, number]
 const rot = (cx: number, cy: number, px: number, py: number, deg: number): [number, number] => {
   const r = (deg * Math.PI) / 180
   return [cx + px * Math.cos(r) - py * Math.sin(r), cy + px * Math.sin(r) + py * Math.cos(r)]
@@ -96,8 +119,7 @@ export function drawPlan(doc: jsPDF, plan: FloorPlan, x0: number, y0: number, ma
   const fs = (cm: number) => Math.max(4.5, Math.min(11, cm * k * 2.835))
   const ink: RGB = [10, 10, 10]
   doc.setLineWidth(0.7); doc.setDrawColor(...ink); doc.setFillColor(255, 255, 255)
-  if (room.outline) polygon(doc, room.outline.map(([px, py]) => [X(px), Y(py)] as [number, number]), 'FD')
-  else doc.roundedRect(X(0), Y(0), room.w * k, room.h * k, 3, 3, 'FD')
+  doc.roundedRect(X(0), Y(0), room.w * k, room.h * k, 3, 3, 'FD')
   doc.setFont('helvetica', 'normal')
   for (const f of room.fixed) {
     if (f.kind === 'entrance') {
@@ -111,10 +133,8 @@ export function drawPlan(doc: jsPDF, plan: FloorPlan, x0: number, y0: number, ma
       continue
     }
     doc.setLineWidth(0.25); doc.setLineDashPattern([1.2, 1.2], 0); doc.setDrawColor(170, 170, 170); doc.setFillColor(236, 236, 236)
-    if (f.kind === 'pillar') doc.ellipse(X(f.x + f.w / 2), Y(f.y + f.h / 2), (f.w * k) / 2, (f.h * k) / 2, 'FD')
-    else doc.rect(X(f.x), Y(f.y), f.w * k, f.h * k, 'FD')
-    doc.setLineDashPattern([], 0)
-    if (f.kind !== 'pillar' && f.label) { doc.setFontSize(fs(20)); doc.setTextColor(138, 138, 138); doc.text(f.label, X(f.x + f.w / 2), Y(f.y + f.h / 2), { align: 'center', baseline: 'middle', angle: f.h > f.w * 1.8 ? 90 : 0 }) }
+    doc.rect(X(f.x), Y(f.y), f.w * k, f.h * k, 'FD'); doc.setLineDashPattern([], 0)
+    if (f.kind !== 'pillar') { doc.setFontSize(fs(20)); doc.setTextColor(138, 138, 138); doc.text(f.label, X(f.x + f.w / 2), Y(f.y + f.h / 2), { align: 'center', baseline: 'middle', angle: f.h > f.w * 1.8 ? 90 : 0 }) }
   }
   let n = 0
   for (const it of plan.items as PlanItem[]) {

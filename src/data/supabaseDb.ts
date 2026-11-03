@@ -1,18 +1,19 @@
-import type { Contact, ContactCategory, EventRec, EventType, Preset, Rating, SharedEvent } from '../types'
+import { normalizeType, type Contact, type ContactCategory, type EventRec, type Preset, type Rating, type SharedEvent } from '../types'
 import type { Db } from './db'
 import { supabase, supabaseConfigured } from './supabaseClient'
 export { supabaseConfigured }
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 const eventFromRow = (r: any): EventRec => ({
-  id: r.id, name: r.name, date: r.date, time: r.time, room: r.room, type: r.type as EventType,
+  id: r.id, name: r.name, date: r.date, time: r.time, endDate: r.end_date ?? null, endTime: r.end_time ?? null, room: r.room, type: normalizeType(r.type),
   expectedGuests: r.expected_guests, actualGuests: r.actual_guests, rating: r.rating as Rating | null,
-  reflection: r.reflection ?? '', notes: r.notes ?? '', coverUrl: r.cover_url, needsFloorPlan: r.needs_floor_plan,
+  reflection: r.reflection ?? '', notes: r.notes ?? '', foodBeverage: r.food_beverage ?? '', bookedBy: r.booked_by ?? '', coverUrl: r.cover_url, needsFloorPlan: r.needs_floor_plan,
   floorPlan: r.floor_plan, staffCount: r.staff_count, schedule: r.schedule ?? [], todos: r.todos ?? [],
   contactIds: r.contact_ids ?? [], shareToken: r.share_token, isSample: r.is_sample, createdAt: r.created_at,
 })
 const eventToRow = (e: EventRec) => ({
-  id: e.id, name: e.name, date: e.date, time: e.time, room: e.room, type: e.type,
+  id: e.id, name: e.name, date: e.date, time: e.time, end_date: e.endDate, end_time: e.endTime, room: e.room, type: e.type,
+  food_beverage: e.foodBeverage, booked_by: e.bookedBy,
   expected_guests: e.expectedGuests, actual_guests: e.actualGuests, rating: e.rating,
   reflection: e.reflection, notes: e.notes, cover_url: e.coverUrl, needs_floor_plan: e.needsFloorPlan,
   floor_plan: e.floorPlan, staff_count: e.staffCount, schedule: e.schedule, todos: e.todos,

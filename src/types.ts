@@ -1,7 +1,9 @@
-export const EVENT_TYPES = ['Live & DJ', 'Party', 'Coffee & Chill', 'Active', 'Other'] as const
+export const EVENT_TYPES = ['NextGen', 'JIM', 'Rituals', 'Events', 'Other'] as const
 export type EventType = (typeof EVENT_TYPES)[number]
+/** Events saved before the type list changed ('Party', 'Live & DJ', ...) are shown as 'Events' instead of breaking. */
+export const normalizeType = (t: string | null | undefined): EventType => ((EVENT_TYPES as readonly string[]).includes(t ?? '') ? (t as EventType) : 'Events')
 
-export const CONTACT_CATEGORIES = ['DJ', 'Food', 'Drinks', 'Sponsor', 'Arts & Crafts', 'Other'] as const
+export const CONTACT_CATEGORIES = ['DJ', 'Food', 'Drinks', 'Instructor', 'Sponsor', 'Arts & Crafts', 'Other'] as const
 export type ContactCategory = (typeof CONTACT_CATEGORIES)[number]
 
 export type Rating = 'Rough' | 'Okay' | 'Great'
@@ -20,8 +22,10 @@ export interface Todo { id: string; text: string; done: boolean }
 export interface EventRec {
   id: string
   name: string
-  date: string // YYYY-MM-DD
-  time: string // HH:mm, doors open
+  date: string // start date, YYYY-MM-DD
+  time: string // start time, HH:mm
+  endDate: string | null // YYYY-MM-DD (null = same day)
+  endTime: string | null // HH:mm
   room: string
   type: EventType
   expectedGuests: number | null
@@ -29,6 +33,8 @@ export interface EventRec {
   rating: Rating | null
   reflection: string
   notes: string
+  foodBeverage: string // free text: "Event Food, Beverage & Extras"
+  bookedBy: string
   coverUrl: string | null
   needsFloorPlan: boolean
   floorPlan: FloorPlan | null
@@ -57,6 +63,10 @@ export interface SharedEvent {
   name: string
   date: string
   time: string
+  endDate?: string | null
+  endTime?: string | null
+  bookedBy?: string
+  foodBeverage?: string
   room: string
   type: string
   expectedGuests: number | null

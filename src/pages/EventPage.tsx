@@ -5,8 +5,7 @@ import { Back } from '../components/ui'
 import NotesBox from '../components/NotesBox'
 import PlanSvg from '../components/PlanSvg'
 import { statLabel } from '../lib/plan'
-import { fmtFull, fmtShort } from '../lib/dates'
-import { isUpcoming, needsUpdate, pct, peopleOf } from '../lib/select'
+import { isUpcoming, needsUpdate, pct, peopleOf, whenFull, whenShort } from '../lib/select'
 
 export default function EventPage() {
   const { id } = useParams()
@@ -29,11 +28,11 @@ export default function EventPage() {
       <div className="head" style={{ marginTop: 6 }}>
         <div>
           <h1 className="title" style={{ marginBottom: 8 }}>{e.name}</h1>
-          <p className="subtitle">{fmtShort(e.date)} · {e.room} · {e.type}</p>
+          <p className="subtitle">{whenShort(e)} · {e.room} · {e.type}</p>
         </div>
         <div className="actions">
-          <Link className="btn" to={`/events/${e.id}/rundown`}>Rundown</Link>
-          {e.needsFloorPlan && <Link className="btn" to={`/events/${e.id}/floorplan`}>Floor plan</Link>}
+          <Link className="btn" to={`/events/${e.id}/rundown`}>Rundown - BEO</Link>
+          {e.needsFloorPlan && <Link className="btn" to={`/events/${e.id}/floorplan?back=event`}>Floor plan</Link>}
           <Link className="btn" to={`/events/${e.id}/edit`}>Edit</Link>
           <Link className="btn primary" to={`/events/new?from=${e.id}`}>Reuse this event</Link>
         </div>
@@ -65,8 +64,8 @@ export default function EventPage() {
 
         <section className="card" aria-label="Key details">
           <div className="card-head"><span className="eyebrow">Key details</span></div>
-          <div className="kv"><span>Date</span><span>{fmtFull(e.date)}</span></div>
-          <div className="kv"><span>Doors open</span><span>{e.time}</span></div>
+          <div className="kv"><span>Date &amp; time</span><span>{whenFull(e)}</span></div>
+          <div className="kv"><span>Booked by</span><span>{e.bookedBy || '—'}</span></div>
           <div className="kv"><span>Room</span><span>{e.room}</span></div>
           <div className="kv"><span>Type</span><span>{e.type}</span></div>
           <div className="kv"><span>DJ</span><span>{chips(djs)}</span></div>
@@ -74,10 +73,10 @@ export default function EventPage() {
           <div className="kv"><span>Staff on shift</span>
             {editStaff ? (
               <input className="input" style={{ width: 90, padding: '8px 12px' }} type="number" min={0} autoFocus defaultValue={e.staffCount ?? ''}
-                aria-label="Staff on shift besides Pawl"
+                aria-label="Staff on shift"
                 onBlur={(ev) => { const v = ev.target.value; patchEvent(e.id, { staffCount: v === '' ? null : Math.max(0, Number(v)) }); setEditStaff(false) }}
                 onKeyDown={(ev) => ev.key === 'Enter' && (ev.target as HTMLInputElement).blur()} />
-            ) : <button className="inline-edit" onClick={() => setEditStaff(true)}>{e.staffCount != null ? `Pawl + ${e.staffCount} staff` : 'Add'}</button>}
+            ) : <button className="inline-edit" onClick={() => setEditStaff(true)}>{e.staffCount != null ? e.staffCount : 'Add'}</button>}
           </div>
           <span className="eyebrow" style={{ display: 'block', margin: '18px 0 10px' }}>Notes</span>
           <NotesBox white value={e.notes} onSave={(v) => patchEvent(e.id, { notes: v })} />
@@ -88,16 +87,16 @@ export default function EventPage() {
             <section className="card" aria-label="Floor plan used">
               <div className="card-head"><span className="eyebrow">Floor plan used</span></div>
               {e.floorPlan
-                ? <Link to={`/events/${e.id}/floorplan`} className="fp-box" style={{ display: 'block' }}><PlanSvg plan={e.floorPlan} /></Link>
+                ? <Link to={`/events/${e.id}/floorplan?back=event`} className="fp-box" style={{ display: 'block' }}><PlanSvg plan={e.floorPlan} /></Link>
                 : <div className="fp-preview" aria-hidden style={{ display: 'grid', placeItems: 'center', color: '#8a8a8a', fontSize: 14, aspectRatio: 2.2 }}>No floor plan saved yet</div>}
               <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 14, gap: 10 }}>
                 <b>{e.floorPlan ? `${e.floorPlan.basedOn ?? 'Custom layout'} · ${statLabel(e.floorPlan.items).split(' · ')[0]}` : e.room}</b>
-                <Link className="link-arrow" to={`/events/${e.id}/floorplan`}>{e.floorPlan ? 'Open' : 'Create'} ↗</Link>
+                <Link className="link-arrow" to={`/events/${e.id}/floorplan?back=event`}>{e.floorPlan ? 'Open' : 'Create'} ↗</Link>
               </div>
             </section>)}
-          <section className="card" aria-label="Rundown">
-            <div className="card-head"><span className="eyebrow">Rundown</span></div>
-            <div className="mini-rundown">{e.schedule.slice(0, 4).map((s) => <div key={s.id}><b>{s.time}</b>{s.title}</div>)}</div>
+          <section className="card" aria-label="Rundown - BEO">
+            <div className="card-head"><span className="eyebrow">Rundown - BEO</span></div>
+            <div className="mini-rundown">{e.schedule.length === 0 ? <span style={{ color: '#8a8a8a' }}>No timeline yet</span> : e.schedule.slice(0, 4).map((s) => <div key={s.id}><b>{s.time}</b>{s.title}</div>)}</div>
             <Link className="link-arrow" style={{ marginTop: 14 }} to={`/events/${e.id}/rundown`}>Open rundown ↗</Link>
           </section>
         </div>

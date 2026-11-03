@@ -2,8 +2,8 @@ import { useMemo, useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useStore } from '../state/StoreProvider'
 import { useAuth } from '../state/AuthProvider'
-import { fmtCal, fmtShort, monthGrid, monthName, parseISO, todayISO, weekdayLetters } from '../lib/dates'
-import { byDateAsc, nextUp } from '../lib/select'
+import { addDays, fmtCal, monthGrid, monthName, parseISO, todayISO, weekdayLetters } from '../lib/dates'
+import { byDateAsc, lastDay, nextUp, whenShort } from '../lib/select'
 
 export default function Dashboard() {
   const { events, patchEvent, hasSample, removeSample, loadSample } = useStore()
@@ -16,13 +16,18 @@ export default function Dashboard() {
   const next = nextUp(events)
   const byDay = useMemo(() => {
     const m = new Map<string, typeof events>()
-    for (const e of events) m.set(e.date, [...(m.get(e.date) ?? []), e])
+    for (const e of events) {
+      const end = lastDay(e)
+      for (let d = e.date, n = 0; d <= end && n < 31; d = addDays(d, 1), n++) m.set(d, [...(m.get(d) ?? []), e])
+    }
     return m
   }, [events])
   const dayEvents = [...(byDay.get(sel) ?? [])].sort(byDateAsc)
   const shift = (n: number) => setView((v) => { const d = new Date(v.y, v.m + n, 1); return { y: d.getFullYear(), m: d.getMonth() } })
   const search = (e: FormEvent) => { e.preventDefault(); if (q.trim()) nav(`/search?q=${encodeURIComponent(q.trim())}`) }
-  const openTodos = next?.todos ?? []
+  const todos = next?.todos ?? []
+  const missingPlan = !!next && next.needsFloorPlan && !next.floorPlan
+  const openNext = () => next && nav(`/events/${next.id}`)
 
   return (
     <div className="page">
@@ -35,35 +40,37 @@ export default function Dashboard() {
       </div>
 
       <div className="dash-grid">
-        <section className="nextup" aria-label="Next up">
+        <section className={`nextup ${next ? 'clickable' : ''}`} aria-label="Next up"
+          {...(next ? { role: 'link', tabIndex: 0, onClick: openNext, onKeyDown: (ev: React.KeyboardEvent) => { if (ev.target === ev.currentTarget && (ev.key === 'Enter' || ev.key === ' ')) { ev.preventDefault(); openNext() } } } : {})}>
           {next ? (
             <>
-              <span className="eyebrow">Next up</span>
+              <div className="nextup-top"><span className="eyebrow">Next up</span><span className="arrow sm" aria-hidden>↗</span></div>
               <h2>{next.name}</h2>
-              <p className="date">{fmtShort(next.date)} · doors {next.time}</p>
+              <p className="date">{whenShort(next)}</p>
               <hr />
               <span style={{ fontSize: 20 }}>To Do:</span>
               <ul className="todo">
-                {openTodos.length === 0 && <li style={{ color: '#a8a8a8' }}>Nothing left to do.</li>}
-                {openTodos.map((t) => (
+                {missingPlan && (
+                  <li className="todo-fp">
+                    <span>No floor plan yet</span>
+                    <Link className="btn white sm" to={`/events/${next.id}/floorplan?back=home`} onClick={(ev) => ev.stopPropagation()}>Add floor plan</Link>
+                  </li>
+                )}
+                {todos.length === 0 && !missingPlan && <li style={{ color: '#a8a8a8' }}>Nothing to do.</li>}
+                {todos.map((t) => (
                   <li key={t.id}>
-                    <button aria-pressed={t.done} className={t.done ? 'done' : ''} onClick={() => patchEvent(next.id, { todos: next.todos.map((x) => (x.id === t.id ? { ...x, done: !x.done } : x)) })}>
+                    <button aria-pressed={t.done} className={t.done ? 'done' : ''} onClick={(ev) => { ev.stopPropagation(); patchEvent(next.id, { todos: next.todos.map((x) => (x.id === t.id ? { ...x, done: !x.done } : x)) }) }}>
                       <span className="box">{t.done ? '✓' : ''}</span>{t.text}
                     </button>
                   </li>
                 ))}
               </ul>
-              <div className="shortcuts">
-                {next.needsFloorPlan && <Link className="btn white sm" to={`/events/${next.id}/floorplan`}>Floor plan</Link>}
-                <Link className="btn white sm" to={`/events/${next.id}/rundown`}>Rundown</Link>
-                <Link className="btn white sm" to={`/events/${next.id}`}>Open event</Link>
-              </div>
             </>
           ) : (
             <>
               <span className="eyebrow">Next up</span>
               <h2>Nothing planned yet</h2>
-              <p className="date">Create your next event and its rundown fills in automatically.</p>
+              <p className="date">Create your next event to see it here.</p>
               <div className="shortcuts"><Link className="btn white sm" to="/events/new">New event</Link></div>
             </>
           )}
@@ -72,7 +79,7 @@ export default function Dashboard() {
         <div className="mid">
           <Link to="/events/new" className="tile span">New Event <span className="arrow" aria-hidden>↗</span></Link>
           <Link to="/gallery" className="tile span">Gallery <span className="arrow" aria-hidden>↗</span></Link>
-          <Link to={next ? `/events/${next.id}/rundown` : '/gallery'} className="tile span">Rundown <span className="arrow" aria-hidden>↗</span></Link>
+          <Link to={next ? `/events/${next.id}/rundown` : '/gallery'} className="tile span">Rundown - BEO <span className="arrow" aria-hidden>↗</span></Link>
           <Link to="/contacts" className="tile small">Contacts</Link>
           <div className="tile small soon" aria-disabled>Guest Stats <span className="pill grey" style={{ fontSize: 12 }}>Soon</span></div>
         </div>

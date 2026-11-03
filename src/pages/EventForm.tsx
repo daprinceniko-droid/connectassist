@@ -4,12 +4,17 @@ import { useStore } from '../state/StoreProvider'
 import { useToast } from '../state/ToastProvider'
 import { Back, Modal } from '../components/ui'
 import { ROOMS } from '../config'
-import { EVENT_TYPES, type EventRec, type EventType } from '../types'
-import { todayISO, uid } from '../lib/dates'
-import { defaultTodos, generateSchedule } from '../lib/schedule'
+import { useAuth } from '../state/AuthProvider'
+import { EVENT_TYPES, type ContactCategory, type EventRec, type EventType, type FloorPlan, type Todo } from '../types'
+import { uid } from '../lib/dates'
+import { reuseSchedule } from '../lib/schedule'
 import { byDateDesc } from '../lib/select'
 import { clonePlan } from '../lib/plan'
-import type { FloorPlan } from '../types'
+
+/** The checks Pawl can switch on for an event. They are what shows up under "To Do" on the home page. */
+const CHECK_PRESETS = ['Make posters', 'Confirm DJ', 'Confirm caterer', 'Confirm instructor']
+/** Adding a contact of this category suggests the matching check (so a DJ, a caterer and an instructor can all be on one event). */
+const CHECK_FOR_CATEGORY: Partial<Record<ContactCategory, string>> = { DJ: 'Confirm DJ', Food: 'Confirm caterer', Instructor: 'Confirm instructor' }
 
 async function resizeImage(file: File, max = 900): Promise<string> {
   const url = URL.createObjectURL(file)
@@ -27,20 +32,25 @@ export default function EventForm() {
   const { events, contacts, saveEvent, deleteEvent } = useStore()
   const toast = useToast()
   const nav = useNavigate()
+  const { user } = useAuth()
   const editing = id ? events.find((e) => e.id === id) : undefined
 
   const [name, setName] = useState(editing?.name ?? '')
   const [date, setDate] = useState(editing?.date ?? '')
   const [time, setTime] = useState(editing?.time ?? '')
+  const [endDate, setEndDate] = useState(editing?.endDate ?? '')
+  const [endTime, setEndTime] = useState(editing?.endTime ?? '')
   const [room, setRoom] = useState(editing?.room ?? ROOMS[2])
-  const [type, setType] = useState<EventType>(editing?.type ?? 'Party')
+  const [type, setType] = useState<EventType>(editing?.type ?? 'Events')
   const [guests, setGuests] = useState(editing?.expectedGuests?.toString() ?? '')
   const [needsFP, setNeedsFP] = useState(editing?.needsFloorPlan ?? true)
-  const [fpTouched, setFpTouched] = useState(Boolean(editing))
+  const [todos, setTodos] = useState<Todo[]>(editing?.todos ?? [])
+  const [custom, setCustom] = useState('')
+  const [bookedBy, setBookedBy] = useState(editing?.bookedBy ?? user?.name ?? 'Pawl')
+  const [usedFrom, setUsedFrom] = useState<string | null>(null)
   const [contactIds, setContactIds] = useState<string[]>(editing?.contactIds ?? [])
   const [cover, setCover] = useState<string | null>(editing?.coverUrl ?? null)
   const [notes, setNotes] = useState(editing?.notes ?? '')
-  const [rebuild, setRebuild] = useState(false)
   const [q, setQ] = useState('')
   const [open, setOpen] = useState(false)
   const [from, setFrom] = useState('')
@@ -52,40 +62,53 @@ export default function EventForm() {
   const past = useMemo(() => [...events].sort(byDateDesc), [events])
   const applyFrom = (srcId: string) => {
     const s = events.find((e) => e.id === srcId); if (!s) return
-    setType(s.type); setRoom(s.room); setGuests(s.expectedGuests?.toString() ?? ''); setNeedsFP(s.needsFloorPlan); setFpTouched(true)
-    setContactIds(s.contactIds); setFrom(srcId); setSrcPlan(s.floorPlan); toast(`Started from ${s.name}`)
+    setType(s.type); setRoom(s.room); setGuests(s.expectedGuests?.toString() ?? ''); setNeedsFP(s.needsFloorPlan)
+    setContactIds(s.contactIds); setFrom(srcId); setUsedFrom(srcId); setSrcPlan(s.floorPlan); toast(`Started from ${s.name}`)
   }
   useEffect(() => { const f = sp.get('from'); if (f && !editing) applyFrom(f) /* eslint-disable-next-line */ }, [])
-  useEffect(() => { if (!fpTouched) setNeedsFP(type !== 'Active') }, [type, fpTouched])
 
   if (id && !editing) return <div className="page"><Back to="/gallery" label="Gallery" /><p className="subtitle" style={{ marginTop: 24 }}>That event no longer exists.</p></div>
 
   const selected = contacts.filter((c) => contactIds.includes(c.id))
   const matches = contacts.filter((c) => !contactIds.includes(c.id) && (!q || `${c.name} ${c.category} ${c.speciality}`.toLowerCase().includes(q.toLowerCase())))
-  const hasDJ = selected.some((c) => c.category === 'DJ')
+  const hasCheck = (text: string) => todos.some((t) => t.text === text)
+  const toggleCheck = (text: string) => setTodos(hasCheck(text) ? todos.filter((t) => t.text !== text) : [...todos, { id: uid(), text, done: false }])
+  const addCustom = () => { const t = custom.trim(); if (t && !hasCheck(t)) setTodos([...todos, { id: uid(), text: t, done: false }]); setCustom('') }
+  const addContact = (c: (typeof contacts)[number]) => {
+    setContactIds([...contactIds, c.id]); setQ(''); setOpen(false)
+    const check = CHECK_FOR_CATEGORY[c.category]
+    if (check && !hasCheck(check)) setTodos((l) => [...l, { id: uid(), text: check, done: false }])
+  }
+  const endDateValue = endDate || date
 
   const submit = async (ev: FormEvent) => {
     ev.preventDefault()
     const er: Record<string, string> = {}
     if (!name.trim()) er.name = 'Give the event a name.'
     if (!date) er.date = 'Pick a date.'
-    if (!time) er.time = 'Add the time doors open.'
+    if (!time) er.time = 'Add the start time.'
+    if (date && endDateValue < date) er.endDate = 'The end date can’t be before the start date.'
+    else if (date && time && endTime && `${endDateValue} ${endTime}` <= `${date} ${time}`) er.endTime = 'The end has to be after the start.'
     if (guests && (!/^\d+$/.test(guests))) er.guests = 'Use a whole number.'
     setErrs(er)
     if (Object.keys(er).length) return
-    const base = { name: name.trim(), date, time, room, type, expectedGuests: guests ? Number(guests) : null, needsFloorPlan: needsFP, contactIds, coverUrl: cover, notes }
+    const base = {
+      name: name.trim(), date, time, endDate: endDateValue > date ? endDateValue : null, endTime: endTime || null, room, type,
+      expectedGuests: guests ? Number(guests) : null, needsFloorPlan: needsFP, contactIds, coverUrl: cover, notes, bookedBy: bookedBy.trim(), todos,
+    }
     if (editing) {
-      const schedule = rebuild ? generateSchedule({ type, time, hasDJ, needsFloorPlan: needsFP }) : editing.schedule
-      await saveEvent({ ...editing, ...base, schedule })
-      toast(rebuild ? 'Event updated. Your rundown was rebuilt' : 'Event updated'); nav(`/events/${editing.id}`)
+      await saveEvent({ ...editing, ...base })
+      toast('Event updated'); nav(`/events/${editing.id}`)
     } else {
+      const src = usedFrom ? events.find((x) => x.id === usedFrom) : undefined
       const rec: EventRec = {
         id: uid(), ...base, actualGuests: null, rating: null, reflection: '', floorPlan: srcPlan && needsFP && srcPlan.room === room ? clonePlan(srcPlan) : null, staffCount: null,
-        schedule: generateSchedule({ type, time, hasDJ, needsFloorPlan: needsFP }),
-        todos: defaultTodos({ type, needsFloorPlan: needsFP, hasDJ }), shareToken: null, isSample: false, createdAt: new Date().toISOString(),
+        // No auto-fill: only a reused event brings its timeline and food/beverage text along
+        schedule: src ? reuseSchedule(src.schedule, src.time, time) : [], foodBeverage: src?.foodBeverage ?? '',
+        shareToken: null, isSample: false, createdAt: new Date().toISOString(),
       }
       await saveEvent(rec)
-      toast('Event created. Your rundown was filled in automatically'); nav(`/events/${rec.id}/rundown`)
+      toast(src ? `Event created. Timeline copied from ${src.name}` : 'Event created'); nav(`/events/${rec.id}/rundown`)
     }
   }
 
@@ -94,7 +117,7 @@ export default function EventForm() {
       <Back to={editing ? `/events/${editing.id}` : '/'} label={editing ? 'Event' : 'Dashboard'} />
       <h1 className="title">{editing ? 'Edit event' : 'New event'}</h1>
       <p className="subtitle" style={{ marginBottom: 36 }}>
-        {editing ? 'Change the basics. Your rundown stays as you left it unless you rebuild it.' : 'The basics for this event. Your rundown fills in automatically.'}
+        {editing ? 'Change the basics of this event.' : 'The basics for this event. You build the timeline yourself in the rundown, or start from a past event to reuse its timeline.'}
       </p>
       <form className="form-grid" onSubmit={submit} noValidate>
         <div className="card form-card">
@@ -102,12 +125,20 @@ export default function EventForm() {
             <input id="n" className="input" placeholder="e.g. Founders Coworking Night" value={name} onChange={(e) => setName(e.target.value)} aria-invalid={!!errs.name} />
             {errs.name && <p className="error-text">{errs.name}</p>}</div>
           <div className="grid-2">
-            <div className="field"><label htmlFor="d">Date</label>
-              <input id="d" type="date" className="input" value={date} onChange={(e) => setDate(e.target.value)} min={editing ? undefined : undefined} aria-invalid={!!errs.date} />
+            <div className="field"><label htmlFor="d">Start date</label>
+              <input id="d" type="date" className="input" value={date} onChange={(e) => setDate(e.target.value)} aria-invalid={!!errs.date} />
               {errs.date && <p className="error-text">{errs.date}</p>}</div>
-            <div className="field"><label htmlFor="t">Time (doors open)</label>
+            <div className="field"><label htmlFor="t">Start time</label>
               <input id="t" type="time" className="input" value={time} onChange={(e) => setTime(e.target.value)} aria-invalid={!!errs.time} />
               {errs.time && <p className="error-text">{errs.time}</p>}</div>
+          </div>
+          <div className="grid-2">
+            <div className="field"><label htmlFor="ed">End date</label>
+              <input id="ed" type="date" className="input" value={endDateValue} min={date || undefined} onChange={(e) => setEndDate(e.target.value)} aria-invalid={!!errs.endDate} />
+              {errs.endDate && <p className="error-text">{errs.endDate}</p>}</div>
+            <div className="field"><label htmlFor="et">End time</label>
+              <input id="et" type="time" className="input" value={endTime} onChange={(e) => setEndTime(e.target.value)} aria-invalid={!!errs.endTime} />
+              {errs.endTime && <p className="error-text">{errs.endTime}</p>}</div>
           </div>
           <div className="grid-2">
             <div className="field"><label htmlFor="r">Room / layout</label>
@@ -122,7 +153,7 @@ export default function EventForm() {
               <input id="g" inputMode="numeric" className="input" placeholder="e.g. 40" value={guests} onChange={(e) => setGuests(e.target.value)} aria-invalid={!!errs.guests} />
               {errs.guests && <p className="error-text">{errs.guests}</p>}</div>
             <div className="field"><label htmlFor="fp">Floor plan</label>
-              <select id="fp" className="select" value={needsFP ? 'yes' : 'no'} onChange={(e) => { setNeedsFP(e.target.value === 'yes'); setFpTouched(true) }}>
+              <select id="fp" className="select" value={needsFP ? 'yes' : 'no'} onChange={(e) => setNeedsFP(e.target.value === 'yes')}>
                 <option value="yes">Needed</option><option value="no">Not needed</option></select></div>
           </div>
           <div className="field picker"><label htmlFor="v">DJ / vendors</label>
@@ -131,7 +162,7 @@ export default function EventForm() {
             {open && (
               <div className="picker-list">
                 {matches.slice(0, 8).map((c) => (
-                  <button type="button" key={c.id} onMouseDown={(e) => e.preventDefault()} onClick={() => { setContactIds([...contactIds, c.id]); setQ(''); setOpen(false) }}>
+                  <button type="button" key={c.id} onMouseDown={(e) => e.preventDefault()} onClick={() => addContact(c)}>
                     <span>{c.name}</span><small>{c.category}</small></button>))}
                 {matches.length === 0 && <p className="empty-note" style={{ padding: 12 }}>No match. <Link to="/contacts" style={{ textDecoration: 'underline' }}>Add them in Contacts</Link>.</p>}
               </div>)}
@@ -140,13 +171,21 @@ export default function EventForm() {
                 {selected.map((c) => <span className="tag" key={c.id}>{c.name}<button type="button" aria-label={`Remove ${c.name}`} onClick={() => setContactIds(contactIds.filter((x) => x !== c.id))}>×</button></span>)}
               </div>)}
           </div>
-          {editing && (
-            <label className="auto-note" style={{ cursor: 'pointer' }}>
-              <input type="checkbox" checked={rebuild} onChange={(e) => setRebuild(e.target.checked)} style={{ width: 22, height: 22, accentColor: '#0a0a0a' }} />
-              Rebuild the rundown from these details (replaces your edits)
-            </label>)}
+          <div className="field"><label htmlFor="bb">Booked by</label>
+            <input id="bb" className="input" value={bookedBy} onChange={(e) => setBookedBy(e.target.value)} autoComplete="off" /></div>
+          <div className="field"><span className="label">Checks for the home page “To Do”</span>
+            <p className="hint">Only what you switch on here is shown under “Next up”. Add a DJ, a caterer and an instructor if the event has all three.</p>
+            <div className="chip-row" role="group" aria-label="Checks">
+              {CHECK_PRESETS.map((c) => <button type="button" key={c} className={`btn sm ${hasCheck(c) ? 'primary' : 'white'}`} aria-pressed={hasCheck(c)} onClick={() => toggleCheck(c)}>{hasCheck(c) ? '✓ ' : '+ '}{c}</button>)}
+              {todos.filter((t) => !CHECK_PRESETS.includes(t.text)).map((t) => <span className="tag" key={t.id}>{t.text}<button type="button" aria-label={`Remove ${t.text}`} onClick={() => setTodos(todos.filter((x) => x.id !== t.id))}>×</button></span>)}
+            </div>
+            <div style={{ display: 'flex', gap: 10, marginTop: 10 }}>
+              <input className="input" aria-label="Add your own check" placeholder="Your own check, e.g. Order flowers" value={custom} onChange={(e) => setCustom(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addCustom() } }} />
+              <button type="button" className="btn" disabled={!custom.trim()} onClick={addCustom}>Add</button>
+            </div>
+          </div>
           <div className="form-foot">
-            {!editing ? <div className="auto-note"><span className="tick">✓</span>Your rundown is created automatically from these details</div>
+            {!editing ? <div className="auto-note"><span className="tick">✓</span>{usedFrom ? 'The timeline will be copied from the past event' : 'You build the timeline in the rundown next'}</div>
               : <button type="button" className="btn outline" onClick={() => setConfirmDel(true)}>Delete event</button>}
             <div style={{ display: 'flex', gap: 12 }}>
               <button type="button" className="btn outline" onClick={() => nav(-1)}>Cancel</button>

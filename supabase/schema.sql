@@ -18,6 +18,8 @@ create table if not exists events (
   name text not null,
   date date not null,
   time text not null default '18:00',
+  end_date date,
+  end_time text,
   room text not null default '',
   type text not null,
   expected_guests int,
@@ -25,6 +27,8 @@ create table if not exists events (
   rating text,
   reflection text not null default '',
   notes text not null default '',
+  food_beverage text not null default '',
+  booked_by text not null default '',
   cover_url text,
   needs_floor_plan boolean not null default true,
   floor_plan jsonb,
@@ -36,6 +40,11 @@ create table if not exists events (
   is_sample boolean not null default false,
   created_at timestamptz not null default now()
 );
+-- v2 columns for projects created before the BEO update (safe to re-run)
+alter table events add column if not exists end_date date;
+alter table events add column if not exists end_time text;
+alter table events add column if not exists food_beverage text not null default '';
+alter table events add column if not exists booked_by text not null default '';
 create index if not exists events_date_idx on events (date desc);
 
 create table if not exists floor_plan_presets (
@@ -71,7 +80,8 @@ create trigger contact_deleted before delete on contacts for each row execute fu
 create or replace function get_shared_event(p_token text) returns jsonb
 language sql security definer set search_path = public as $$
   select jsonb_build_object(
-    'name', e.name, 'date', e.date, 'time', e.time, 'room', e.room, 'type', e.type,
+    'name', e.name, 'date', e.date, 'time', e.time, 'endDate', e.end_date, 'endTime', e.end_time, 'bookedBy', e.booked_by, 'foodBeverage', e.food_beverage,
+    'room', e.room, 'type', e.type,
     'expectedGuests', e.expected_guests, 'notes', e.notes, 'needsFloorPlan', e.needs_floor_plan,
     'schedule', e.schedule, 'floorPlan', case when e.needs_floor_plan then e.floor_plan else null end,
     'contacts', coalesce((select jsonb_agg(jsonb_build_object('name', c.name, 'category', c.category))

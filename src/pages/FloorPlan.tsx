@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useRef, useState, type DragEvent, type KeyboardEvent, type PointerEvent as RPE } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { useParams, useSearchParams } from 'react-router-dom'
 import { useStore } from '../state/StoreProvider'
 import { useToast } from '../state/ToastProvider'
 import { Back, Modal } from '../components/ui'
 import PlanSvg, { type PlanHandlers } from '../components/PlanSvg'
 import { fmtShort, uid } from '../lib/dates'
-import { ROOM_NAMES, insideRoom, roomLayout } from '../lib/rooms'
+import { ROOM_NAMES, roomLayout } from '../lib/rooms'
 import { KIND_META, PALETTE, STARTERS, clampItem, itemName, newItem, planStats, snap, starterItems, statLabel } from '../lib/plan'
 import { downloadFloorPlanPdf } from '../lib/pdf'
 import type { FloorPlan, PlanItem, PlanKind } from '../types'
@@ -30,6 +30,7 @@ function PalIcon({ kind }: { kind: PlanKind }) {
 
 export default function FloorPlanPage() {
   const { id } = useParams()
+  const [sp] = useSearchParams()
   const { events, presets, savePreset, deletePreset, patchEvent } = useStore()
   const toast = useToast()
   const e = events.find((x) => x.id === id)
@@ -48,16 +49,27 @@ export default function FloorPlanPage() {
   const drag = useRef<{ id: string; dx: number; dy: number; moved: boolean } | null>(null)
   const room = roomLayout(plan.room)
 
-  const flush = () => {
+  /** Writes the plan to the event. Only does something if there are changes, unless `force` is set (the Save button). */
+  const flush = (force = false) => {
     const cur = eRef.current
-    if (!dirty.current || !cur) return
+    if (!cur || (!dirty.current && !force)) return false
     dirty.current = false
     const p = planRef.current
-    patchEvent(cur.id, { floorPlan: p, needsFloorPlan: true, room: p.room, todos: cur.todos.map((t) => (t.text === 'Floor plan' ? { ...t, done: true } : t)) })
+    patchEvent(cur.id, { floorPlan: p, needsFloorPlan: true, room: p.room })
     setSaved('saved')
+    return true
   }
-  useEffect(() => { if (!dirty.current) return; setSaved('dirty'); const t = window.setTimeout(flush, 800); return () => window.clearTimeout(t) /* eslint-disable-next-line */ }, [plan])
-  useEffect(() => () => flush() /* eslint-disable-next-line */, [])
+  // Nothing is saved behind your back while you work: the status below the title says what's what.
+  useEffect(() => { if (dirty.current) setSaved('dirty') }, [plan])
+  // Safety net: leaving the page (Back, a link, closing the tab) with unsaved changes saves them instead of losing them.
+  useEffect(() => () => { if (flush()) toast('Floor plan saved') /* eslint-disable-next-line */ }, [])
+  useEffect(() => {
+    if (saved !== 'dirty') return
+    const warn = (ev: BeforeUnloadEvent) => { ev.preventDefault() }
+    window.addEventListener('beforeunload', warn)
+    return () => window.removeEventListener('beforeunload', warn)
+  }, [saved])
+  const status = saved === 'dirty' ? 'Unsaved changes' : saved === 'saved' || e?.floorPlan ? '✓ Saved' : 'Not saved yet'
 
   const push = () => { setPast((p) => [...p.slice(-99), planRef.current]); setFuture([]) }
   const commit = (next: FloorPlan) => { push(); setPlan(next); dirty.current = true }
@@ -75,7 +87,7 @@ export default function FloorPlanPage() {
   const remove = () => { if (selected) { commit(edited(plan.items.filter((i) => i.id !== selected.id))); setSel(null) } }
   const duplicate = () => { if (selected) { const c = { ...selected, id: uid(), x: selected.x + 40, y: selected.y + 40 }; commit(edited([...plan.items, clampItem(c, room)])); setSel(c.id) } }
   const applyPreset = (name: string, items: PlanItem[]) => { commit({ room: plan.room, items: items.map((i) => ({ ...i, id: uid() })), basedOn: name }); setSel(null) }
-  const changeRoom = (r: string) => { if (r === plan.room) return; commit({ room: r, items: [] }); setSel(null) } // new room = clean slate (undo brings the old one back)
+  const changeRoom = (r: string) => { const l = roomLayout(r); commit({ ...plan, room: r, items: plan.items.map((i) => clampItem(i, l)) }) }
 
   const toSvg = (ev: { clientX: number; clientY: number }) => {
     const svg = svgEl.current!, pt = svg.createSVGPoint(); pt.x = ev.clientX; pt.y = ev.clientY
@@ -87,7 +99,7 @@ export default function FloorPlanPage() {
       const d = drag.current; if (!d || d.id !== it.id) return
       const p = toSvg(ev), nx = snap(p.x + d.dx), ny = snap(p.y + d.dy)
       const cur = planRef.current.items.find((i) => i.id === it.id)!
-      if ((nx === cur.x && ny === cur.y) || !insideRoom(room, nx, ny)) return
+      if (nx === cur.x && ny === cur.y) return
       if (!d.moved) { push(); d.moved = true }
       dirty.current = true
       setPlan({ ...planRef.current, basedOn: undefined, items: planRef.current.items.map((i) => (i.id === it.id ? clampItem({ ...i, x: nx, y: ny }, room) : i)) })
@@ -105,7 +117,7 @@ export default function FloorPlanPage() {
     if (ev.key === 'Delete' || ev.key === 'Backspace') { ev.preventDefault(); remove(); return }
     const step = ev.shiftKey ? 50 : 10
     const dir: Record<string, [number, number]> = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step] }
-    if (dir[ev.key]) { ev.preventDefault(); const [dx, dy] = dir[ev.key]; const m = clampItem({ ...selected, x: selected.x + dx, y: selected.y + dy }, room); if (insideRoom(room, m.x, m.y)) patchItem(m) }
+    if (dir[ev.key]) { ev.preventDefault(); const [dx, dy] = dir[ev.key]; patchItem(clampItem({ ...selected, x: selected.x + dx, y: selected.y + dy }, room)) }
   }
   const onDrop = (ev: DragEvent) => {
     ev.preventDefault(); const k = ev.dataTransfer.getData('text/plain') as PlanKind
@@ -116,6 +128,9 @@ export default function FloorPlanPage() {
   const starters = useMemo(() => STARTERS.map((n) => ({ name: n, items: starterItems(plan.room, n) })), [plan.room])
   const mine = presets.filter((p) => p.room === plan.room)
 
+  const back = sp.get('back')
+  const backTo = !e ? '/gallery' : back === 'rundown' ? `/events/${e.id}/rundown` : back === 'home' ? '/' : `/events/${e.id}`
+  const backLabel = back === 'rundown' ? 'Rundown - BEO' : back === 'home' ? 'Home' : 'Event'
   if (!e) return <div className="page"><Back to="/gallery" label="Gallery" /><p className="subtitle" style={{ marginTop: 24 }}>That event no longer exists.</p></div>
   const isSeating = selected?.kind === 'seating'
   const hasSeats = selected && (selected.kind === 'round' || selected.kind === 'long' || selected.kind === 'sofa')
@@ -123,12 +138,14 @@ export default function FloorPlanPage() {
 
   return (
     <div className="page" onKeyDown={onKey}>
-      <Back to={`/events/${e.id}`} label="Event" />
+      <Back to={backTo} label={backLabel} />
       <div className="head" style={{ marginTop: 6 }}>
         <div><h1 className="title" style={{ marginBottom: 8 }}>Floor plan</h1><p className="subtitle">{e.name} · {fmtShort(e.date)} · {plan.room}</p></div>
         <div className="actions">
+          <span className={`pill ${saved === 'dirty' ? 'dark' : ''}`} style={{ alignSelf: 'center' }} aria-live="polite">{status}</span>
+          <button className="btn primary" disabled={saved === 'saved' || (saved === 'idle' && !!e.floorPlan)} onClick={() => { flush(true); toast('Floor plan saved') }}>{saved === 'saved' || (saved === 'idle' && e.floorPlan) ? '✓ Saved' : 'Save floor plan'}</button>
           <button className="btn" onClick={() => setModal('preset')}>Save as preset</button>
-          <button className="btn primary" onClick={async () => { flush(); await downloadFloorPlanPdf(e.name, e.date, plan); toast('PDF exported') }}>Export PDF</button>
+          <button className="btn" onClick={async () => { flush(); await downloadFloorPlanPdf(e.name, e.date, plan); toast('PDF exported') }}>Export PDF</button>
         </div>
       </div>
 
@@ -155,7 +172,7 @@ export default function FloorPlanPage() {
             </div>
           </div>
           <div className="canvas-foot">
-            <span className="saved">Room outlines are approximate · {saved === 'dirty' ? 'Saving…' : 'Saved automatically'}</span>
+            <span className="saved">Room outlines are approximate · {status}</span>
             <div style={{ display: 'flex', gap: 8 }}>
               <span className="zoom"><button aria-label="Undo" disabled={!past.length} onClick={undo}>↶</button><button aria-label="Redo" disabled={!future.length} onClick={redo}>↷</button></span>
               <span className="zoom"><button aria-label="Zoom out" disabled={zoom <= 0.5} onClick={() => setZoom((z) => Math.max(0.5, z - 0.25))}>−</button><b>{Math.round(zoom * 100)}%</b><button aria-label="Zoom in" disabled={zoom >= 2} onClick={() => setZoom((z) => Math.min(2, z + 0.25))}>+</button></span>
@@ -206,7 +223,6 @@ export default function FloorPlanPage() {
           await savePreset({ id: ex?.id ?? uid(), name, room: plan.room, items: plan.items, createdAt: ex?.createdAt ?? new Date().toISOString() })
           setPlan({ ...plan, basedOn: name }); dirty.current = true; setModal(null); toast('Preset saved') }} />}
       {modal === 'custom' && <CustomEl onClose={() => setModal(null)} onAdd={(label, w, h) => { add('custom', undefined, undefined, { label, w, h }); setModal(null); toast('Custom element added') }} />}
-      <p className="saved" style={{ marginTop: 18 }}><Link to={`/events/${e.id}/rundown`} style={{ textDecoration: 'underline' }}>Back to rundown</Link></p>
     </div>
   )
 }

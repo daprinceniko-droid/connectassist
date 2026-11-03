@@ -278,3 +278,12 @@ h1.title { font-size: 48px; line-height: 1.05; letter-spacing: -0.03em; font-wei
 .preset-wrap .x { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); width: 26px; height: 26px; border-radius: 50%; border: 0; background: rgba(128,128,128,.25); color: inherit; line-height: 1; }
 .fp-box { background: #fff; border-radius: 18px; padding: 10px; }
 @media (max-width: 1180px) { .fp-grid { grid-template-columns: 1fr; } .pal-grid { grid-template-columns: repeat(4, 1fr); } }
+
+/* v2 additions */
+.hint { color: var(--muted); font-size: 14px; margin: 2px 0 12px; }
+.nextup.clickable { cursor: pointer; transition: transform .12s; }
+.nextup.clickable:hover { transform: translateY(-2px); }
+.nextup-top { display: flex; justify-content: space-between; align-items: center; }
+.arrow.sm { width: 40px; height: 40px; font-size: 19px; background: #fff; color: var(--ink); }
+.todo-fp { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 6px 0 10px; font-size: 18px; color: #d4d4d4; }
+.todo-fp .btn { flex: none; }

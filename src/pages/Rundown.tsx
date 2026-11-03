@@ -1,21 +1,20 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { useStore } from '../state/StoreProvider'
 import { useToast } from '../state/ToastProvider'
 import { Back, Modal } from '../components/ui'
-import NotesBox from '../components/NotesBox'
 import PlanSvg from '../components/PlanSvg'
 import { statLabel } from '../lib/plan'
 import { OWNERS } from '../config'
-import { fmtShort, uid } from '../lib/dates'
-import { nextUp, peopleOf } from '../lib/select'
+import { uid } from '../lib/dates'
+import { nextUp, peopleOf, whenShort } from '../lib/select'
 import { shiftTime, sortSchedule, STANDARD_ELEMENTS } from '../lib/schedule'
 import { downloadRundownPdf } from '../lib/pdf'
-import { shareUrl, toShared } from '../lib/share'
+import { toShared } from '../lib/share'
 import type { EventRec, ScheduleItem } from '../types'
 
-function ItemModal({ item, doors, onSave, onDelete, onClose }: { item: ScheduleItem | null; doors: string; onSave: (i: ScheduleItem) => void; onDelete?: () => void; onClose: () => void }) {
-  const [time, setTime] = useState(item?.time ?? doors)
+function ItemModal({ item, start, onSave, onDelete, onClose }: { item: ScheduleItem | null; start: string; onSave: (i: ScheduleItem) => void; onDelete?: () => void; onClose: () => void }) {
+  const [time, setTime] = useState(item?.time ?? start)
   const [title, setTitle] = useState(item?.title ?? '')
   const [owner, setOwner] = useState(item?.owner ?? 'Staff')
   return (
@@ -23,7 +22,7 @@ function ItemModal({ item, doors, onSave, onDelete, onClose }: { item: ScheduleI
       {!item && (
         <div className="chip-row" style={{ marginBottom: 18 }}>
           {STANDARD_ELEMENTS.map((s) => (
-            <button key={s.label} type="button" className="chip" style={{ background: '#f3f3f3' }} onClick={() => { setTitle(s.title); setOwner(s.owner); setTime(shiftTime(doors, s.lead)) }}>{s.label}</button>))}
+            <button key={s.label} type="button" className="chip" style={{ background: '#f3f3f3' }} onClick={() => { setTitle(s.title); setOwner(s.owner); setTime(shiftTime(start, s.lead)) }}>{s.label}</button>))}
         </div>)}
       <div className="grid-2">
         <div className="field"><label htmlFor="it">Time</label><input id="it" type="time" className="input" value={time} onChange={(e) => setTime(e.target.value)} /></div>
@@ -41,66 +40,80 @@ function ItemModal({ item, doors, onSave, onDelete, onClose }: { item: ScheduleI
   )
 }
 
-function ShareModal({ e, onClose }: { e: EventRec; onClose: () => void }) {
-  const { ensureShareToken, stopSharing, contacts } = useStore()
-  const toast = useToast()
-  const [url, setUrl] = useState<string | null>(e.shareToken ? shareUrl(e.shareToken) : null)
-  const create = async () => setUrl(shareUrl(await ensureShareToken(e.id)))
-  if (!url && !e.shareToken) void 0
-  const copy = async () => { await navigator.clipboard.writeText(url!); toast('Link copied to clipboard') }
-  return (
-    <Modal title="Share rundown" lead="Anyone with the link can view this rundown. No account needed, and no contact details are shown." onClose={onClose}>
-      {url ? (
-        <>
-          <div className="field"><label htmlFor="su">Link</label><input id="su" className="input" readOnly value={url} onFocus={(ev) => ev.target.select()} /></div>
-          <div className="foot" style={{ justifyContent: 'flex-start' }}>
-            <button className="btn primary" onClick={copy}>Copy link</button>
-            <a className="btn" href={`mailto:?subject=${encodeURIComponent(`Rundown: ${e.name}`)}&body=${encodeURIComponent(`Here’s the rundown for ${e.name} (${fmtShort(e.date)}):\n${url}`)}`} onClick={() => toast('Email draft opened')}>Email link</a>
-            <button className="btn" onClick={async () => { await downloadRundownPdf(toShared(e, contacts)); toast('PDF exported') }}>Download PDF</button>
-            <button className="btn outline left" style={{ marginLeft: 'auto' }} onClick={async () => { await stopSharing(e.id); setUrl(null); toast('Sharing stopped. The old link no longer works') }}>Stop sharing</button>
-          </div>
-        </>
-      ) : (
-        <div className="foot"><button className="btn outline" onClick={onClose}>Cancel</button><button className="btn primary" onClick={create}>Create share link</button></div>
-      )}
-    </Modal>
-  )
-}
+const FLOOR_PLAN = (id: string) => `/events/${id}/floorplan?back=rundown`
 
 export default function Rundown() {
   const { id } = useParams()
-  const { events, contacts, patchEvent } = useStore()
-  const toast = useToast()
-  const [modal, setModal] = useState<'add' | 'share' | ScheduleItem | null>(null)
+  const { events } = useStore()
   const e = id ? events.find((x) => x.id === id) : nextUp(events)
   if (!e) return (
     <div className="page"><Back to="/" label="Home" />
-      <h1 className="title">Rundown</h1><p className="subtitle">{id ? 'That event no longer exists.' : 'No upcoming event yet. Create one and its rundown fills in automatically.'}</p>
+      <h1 className="title">Rundown - BEO</h1><p className="subtitle">{id ? 'That event no longer exists.' : 'No upcoming event yet. Create one to start its rundown.'}</p>
       {!id && <Link className="btn primary" style={{ marginTop: 20 }} to="/events/new">New event</Link>}</div>)
+  return <RundownEditor key={e.id} e={e} />
+}
+
+function RundownEditor({ e }: { e: EventRec }) {
+  const { contacts, patchEvent } = useStore()
+  const toast = useToast()
+  const [modal, setModal] = useState<'add' | ScheduleItem | null>(null)
+
+  // Everything on this page is a draft until "Save" is pressed.
+  const [schedule, setSchedule] = useState<ScheduleItem[]>(e.schedule)
+  const [fb, setFb] = useState(e.foodBeverage)
+  const [notes, setNotes] = useState(e.notes)
+  const dirty = JSON.stringify(schedule) !== JSON.stringify(e.schedule) || fb !== e.foodBeverage || notes !== e.notes
+
+  const live = useRef({ dirty, schedule, fb, notes, id: e.id, patchEvent, toast })
+  live.current = { dirty, schedule, fb, notes, id: e.id, patchEvent, toast }
+  const saveNow = (quiet = false) => {
+    const c = live.current
+    if (!c.dirty) { if (!quiet) c.toast('Rundown saved'); return }
+    c.patchEvent(c.id, { schedule: sortSchedule(c.schedule), foodBeverage: c.fb, notes: c.notes })
+    c.toast('Rundown saved')
+  }
+  // Safety net: leaving the page with unsaved changes saves them instead of losing them.
+  useEffect(() => () => { if (live.current.dirty) saveNow(true) /* eslint-disable-next-line */ }, [])
+  useEffect(() => {
+    if (!dirty) return
+    const warn = (ev: BeforeUnloadEvent) => { ev.preventDefault() }
+    window.addEventListener('beforeunload', warn)
+    return () => window.removeEventListener('beforeunload', warn)
+  }, [dirty])
 
   const people = peopleOf(e, contacts)
   const djs = people.filter((p) => p.category === 'DJ').map((p) => p.name)
   const vendors = people.filter((p) => p.category !== 'DJ').map((p) => p.name)
-  const allAuto = e.schedule.every((s) => s.auto)
-  const setSchedule = (s: ScheduleItem[]) => patchEvent(e.id, { schedule: sortSchedule(s) })
-  const saveItem = (i: ScheduleItem) => { setSchedule(e.schedule.some((x) => x.id === i.id) ? e.schedule.map((x) => (x.id === i.id ? i : x)) : [...e.schedule, i]); toast(modal === 'add' ? 'Item added to the schedule' : 'Item updated'); setModal(null) }
+  const saveItem = (i: ScheduleItem) => {
+    setSchedule(sortSchedule(schedule.some((x) => x.id === i.id) ? schedule.map((x) => (x.id === i.id ? i : x)) : [...schedule, i]))
+    setModal(null)
+  }
+  const exportPdf = async () => {
+    if (dirty) saveNow(true)
+    await downloadRundownPdf(toShared({ ...e, schedule: sortSchedule(schedule), foodBeverage: fb, notes }, contacts))
+    toast('PDF exported')
+  }
 
   return (
     <div className="page">
       <div className="topbar"><Back to="/" label="Home" /><Link className="btn back" to="/gallery">Gallery</Link><Link className="btn back" to={`/events/${e.id}`}>Event page</Link></div>
       <div className="head" style={{ marginTop: 6 }}>
-        <div><h1 className="title" style={{ marginBottom: 8 }}>Rundown</h1><p className="subtitle">{e.name} · {fmtShort(e.date)} · {e.room}</p></div>
-        <div className="actions"><button className="btn" onClick={() => setModal('share')}>Share link</button>
-          <button className="btn primary" onClick={async () => { await downloadRundownPdf(toShared(e, contacts)); toast('PDF exported') }}>Export PDF</button></div>
+        <div><h1 className="title" style={{ marginBottom: 8 }}>Rundown - BEO</h1><p className="subtitle">{e.name} · {whenShort(e)} · {e.room}</p></div>
+        <div className="actions">
+          <span className={`pill ${dirty ? 'dark' : ''}`} style={{ alignSelf: 'center' }} aria-live="polite">{dirty ? 'Unsaved changes' : '✓ All changes saved'}</span>
+          <button className="btn primary" disabled={!dirty} onClick={() => saveNow()}>{dirty ? 'Save rundown' : '✓ Saved'}</button>
+          <button className="btn" onClick={exportPdf}>Export PDF</button>
+        </div>
       </div>
 
       <div className="rundown-grid">
-        <section className="card" aria-label="Schedule">
-          <div className="card-head"><span className="eyebrow">Schedule</span><span className="pill">{allAuto ? '✓ Auto-filled' : 'Edited'}</span></div>
+        <section className="card" aria-label="Event timeline">
+          <div className="card-head"><span className="eyebrow">Event timeline</span></div>
           <div className="rows">
-            {e.schedule.map((s) => (
+            {schedule.map((s) => (
               <button key={s.id} className={`row ${s.highlight ? 'hl' : ''}`} onClick={() => setModal(s)} aria-label={`Edit ${s.title} at ${s.time}`}>
                 <b>{s.time}</b><span>{s.title}</span><span className="o">{s.owner}</span></button>))}
+            {schedule.length === 0 && <p className="empty-note" style={{ padding: '4px 4px 8px' }}>Nothing here yet. Add the first item, or start a new event from a past one to copy its timeline.</p>}
             <button className="dashed" onClick={() => setModal('add')}>+ Add item</button>
           </div>
         </section>
@@ -110,10 +123,10 @@ export default function Rundown() {
             <section className="card" aria-label="Floor plan">
               <div className="card-head"><span className="eyebrow">Floor plan</span>{e.floorPlan ? <span className="pill">✓ Added</span> : <span className="pill dark">To add</span>}</div>
               {e.floorPlan ? (<>
-                <Link to={`/events/${e.id}/floorplan`} className="fp-box" style={{ display: 'block' }}><PlanSvg plan={e.floorPlan} /></Link>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 14, gap: 10 }}><b>{e.floorPlan.basedOn ?? 'Custom layout'} · {statLabel(e.floorPlan.items).split(' · ')[0]}</b><Link className="link-arrow" to={`/events/${e.id}/floorplan`}>Edit ↗</Link></div>
+                <Link to={FLOOR_PLAN(e.id)} className="fp-box" style={{ display: 'block' }}><PlanSvg plan={e.floorPlan} /></Link>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 14, gap: 10 }}><b>{e.floorPlan.basedOn ?? 'Custom layout'} · {statLabel(e.floorPlan.items).split(' · ')[0]}</b><Link className="link-arrow" to={FLOOR_PLAN(e.id)}>Edit ↗</Link></div>
               </>) : (<>
-                <Link to={`/events/${e.id}/floorplan`} className="drop"><span className="plus">+</span><b>Add floor plan</b><span>Pick a preset or build one</span></Link>
+                <Link to={FLOOR_PLAN(e.id)} className="drop"><span className="plus">+</span><b>Add floor plan</b><span>Pick a preset or build one</span></Link>
                 <button className="btn sm" style={{ marginTop: 14 }} onClick={() => patchEvent(e.id, { needsFloorPlan: false })}>This event doesn’t need one</button>
               </>)}
             </section>)}
@@ -126,17 +139,22 @@ export default function Rundown() {
           </section>
         </div>
 
-        <section className="card" aria-label="Notes">
-          <div className="card-head"><span className="eyebrow">Notes</span></div>
-          <NotesBox value={e.notes} onSave={(v) => patchEvent(e.id, { notes: v })} />
-        </section>
+        <div className="stack">
+          <section className="card" aria-label="Event Food, Beverage & Extras">
+            <div className="card-head"><span className="eyebrow">Event Food, Beverage &amp; Extras</span></div>
+            <textarea className="notes-area" rows={6} aria-label="Event Food, Beverage & Extras" placeholder="e.g. Finger food at 18:30, two drink tickets per guest, extra: photo wall…" value={fb} onChange={(ev) => setFb(ev.target.value)} />
+          </section>
+          <section className="card" aria-label="Event notes">
+            <div className="card-head"><span className="eyebrow">Event notes</span></div>
+            <textarea className="notes-area" rows={6} aria-label="Event notes" placeholder="Anything worth remembering for next time…" value={notes} onChange={(ev) => setNotes(ev.target.value)} />
+          </section>
+        </div>
       </div>
 
-      {modal === 'share' && <ShareModal e={e} onClose={() => setModal(null)} />}
-      {modal === 'add' && <ItemModal item={null} doors={e.time} onSave={saveItem} onClose={() => setModal(null)} />}
+      {modal === 'add' && <ItemModal item={null} start={e.time} onSave={saveItem} onClose={() => setModal(null)} />}
       {modal && typeof modal === 'object' && (
-        <ItemModal item={modal} doors={e.time} onSave={saveItem} onClose={() => setModal(null)}
-          onDelete={() => { setSchedule(e.schedule.filter((x) => x.id !== (modal as ScheduleItem).id)); toast('Item removed'); setModal(null) }} />)}
+        <ItemModal item={modal} start={e.time} onSave={saveItem} onClose={() => setModal(null)}
+          onDelete={() => { setSchedule(schedule.filter((x) => x.id !== (modal as ScheduleItem).id)); setModal(null) }} />)}
     </div>
   )
 }
