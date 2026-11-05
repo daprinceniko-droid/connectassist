@@ -1,116 +1,92 @@
 # ConnectAssist
 
-Event planning assistant for the Connector at **The Social Hub The Hague**. It replaces six scattered tools and a stack of printed rundowns with one visual web app: plan an event, get its rundown generated automatically, build the floor plan, share it with staff as a link or PDF, and look back at past events and vendors in seconds.
+ConnectAssist is an event-planning workspace for the Connector team at The Social Hub The Hague. It brings event details, schedules, room layouts, and contact information together so the team can plan events and share a clear rundown with staff.
 
-Built as part of a Fontys ICT internship project. Primary user: Pawl Berger (Connector).
+## What it does
 
-## Status: V1 (in testing with Pawl)
+- Create and manage events, including recurring events.
+- Generate and edit event rundowns, with a dashboard for upcoming work and to-dos.
+- Browse past events and search event and contact information.
+- Track post-event attendance, ratings, and reflections.
+- Build room layouts with draggable furniture, presets, undo/redo, and live table and seat counts.
+- Export a rundown or floor plan as a PDF, or share a read-only rundown link with staff.
+- Maintain a vendor and contact directory.
 
-| Feature | State |
-|---|---|
-| Dashboard (next up, to-dos, calendar, search) | Done |
-| Event maker (auto-generates the rundown) | Done |
-| Gallery (filters, search, cover photos) | Done |
-| Event page + post-event update (actual guests, rating, reflection) | Done |
-| Rundown editor + standard elements | Done |
-| **Floor plan builder** (5 rooms, drag and drop, presets, PDF) | Done |
-| PDF export + public share link (no staff accounts) | Done |
-| Vendor / contact directory | Done |
-| Guest stats | Planned |
-| Guest-return tracking | Out of scope until GDPR review |
-
-## Floor plan builder
-
-Rooms: **Restaurant & Bar, Meeting Space 1, Meeting Space 2+3, Catwalk, Lobby.**
-
-- Drag elements from the palette (or click to add): round table, long table, sofa, stage, bar, plant, DJ booth, door, seating block, plus custom elements.
-- Starter presets per room (Cabaret, Theatre, Lounge party, Blank) are generated to fit the room and flow around pillars. Layouts can be saved as your own presets.
-- Move by dragging or arrow keys, rotate, resize, duplicate, undo/redo, zoom. Seat and table counts update live.
-- Autosaves to the event, ticks the "Floor plan" to-do, shows on the event page, the rundown, the public share page, and exports as PDF.
-- Reusing a past event copies its floor plan.
-
-> **Room dimensions are estimates.** Real measurements go in `src/lib/rooms.ts` (width/height in cm plus pillars, storage, entrances). Every plan redraws automatically.
+The floor-plan builder includes Restaurant & Bar, Meeting Space 1, Meeting Space 2+3, Catwalk, and Lobby. Room dimensions are estimates; update them in `src/lib/rooms.ts` when verified measurements are available.
 
 ## Tech stack
 
-- React 18 + TypeScript + Vite
-- Supabase (Postgres, Auth, Row Level Security) for persistent storage
-- Netlify for hosting, deployed from this repo
+- React 18, TypeScript, and Vite
+- Supabase for hosted data and authentication
+- Browser storage for local demo data
 - jsPDF for client-side PDF export
+- Netlify for deployment
 
 ## Run locally
+
+Requirements: Node.js and npm.
 
 ```bash
 npm install
 npm run dev
 ```
 
-With no `.env` file the app runs in **demo mode**: data is stored in your browser only. Use "Load sample events" on the dashboard to try it.
+Open the local URL printed by Vite. With the Supabase variables unset, ConnectAssist runs in demo mode and stores data in the current browser. Use **Load sample events** on the dashboard to explore the app. Demo data is not synced or backed up.
 
-To connect a real database, copy `.env.example` to `.env` and fill in:
+To use a Supabase project, copy `.env.example` to `.env` and set:
 
+```dotenv
+VITE_SUPABASE_URL=https://your-project.supabase.co
+VITE_SUPABASE_ANON_KEY=your-supabase-anon-key
 ```
-VITE_SUPABASE_URL=
-VITE_SUPABASE_ANON_KEY=
+
+Restart the dev server after changing environment variables. Do not put a Supabase service-role key in the browser app.
+
+## Supabase setup
+
+1. Create a Supabase project.
+2. Open the project's **SQL Editor**, run the contents of [`supabase/schema.sql`](./supabase/schema.sql), and confirm the tables and policies were created.
+3. In Supabase Authentication, disable public sign-ups and create accounts for the authorized team members.
+4. Add the project URL and anon key to `.env` locally and to the deployment environment.
+
+The schema can be re-run to apply its table, column, index, policy, and function definitions. Row-level security restricts the app's data tables to authenticated users. Public share links expose only the selected event rundown and limited contact names/categories; they do not expose contact details or post-event reflections.
+
+## Build and preview
+
+```bash
+npm run build
+npm run preview
 ```
 
-## Set up the database
-
-1. Create a Supabase project (EU region).
-2. Open **SQL Editor**, paste all of `supabase/schema.sql`, and run it. **The file is safe to re-run**, so after pulling an update just run it again.
-3. Under **Authentication**, disable public sign-ups and create one user each for the Connector and the Connector Intern.
+`npm run build` runs the TypeScript project build and creates the production site in `dist/`.
 
 ## Deploy
 
-1. Import this repo in Netlify. Build settings come from `netlify.toml`.
-2. Add `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` as environment variables.
-3. Every push to `main` deploys automatically.
+The repository is configured for Netlify in [`netlify.toml`](./netlify.toml). Import the repository in Netlify and set `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` in the site's environment variables. Netlify builds with `npm run build` and publishes `dist/`; the redirect configuration supports client-side routes.
 
-The anon key is safe in the browser: Row Level Security allows only signed-in users to read or write, and public share links can only fetch a single rundown by its secret token.
+## Project layout
 
-## Configuration
-
-- `src/config.ts`: room list for the event form, week start day, rundown "who" suggestions
-- `src/lib/rooms.ts`: room dimensions and fixed features for the floor plan builder
-- `src/lib/schedule.ts`: default rundown timings per event type
-
-## Project structure
-
-```
+```text
 src/
-  pages/        one file per screen
-  components/   shared UI (modal, notes box, floor plan renderer)
-  state/        auth, store, toasts
-  data/         database layer (Supabase + browser fallback)
-  lib/          dates, schedule generator, floor plan logic, PDF, helpers
+  components/  Shared interface components
+  data/        Supabase and browser-storage data layers, sample data
+  lib/         Scheduling, recurrence, floor plans, PDF, dates, and helpers
+  pages/       Application screens
+  state/       Authentication, app data, and notifications
 supabase/
-  schema.sql    tables, security policies, share-link function (re-runnable)
+  schema.sql   Tables, row-level security, and public share-link function
 ```
 
-## Privacy and ethics
+Useful configuration lives in:
 
-Follows the project's Professional Standard:
+- `src/config.ts` — rooms, week start, and rundown owner suggestions
+- `src/lib/rooms.ts` — room dimensions and fixed layout features
+- `src/lib/schedule.ts` — default rundown timings
 
-- **Data minimisation:** contacts store name, category, speciality, email, phone and notes only.
-- **Right to removal:** deleting a contact removes it and unlinks it from every event (database trigger).
-- **No staff accounts:** staff view rundowns through a revocable link or PDF. Shared pages show vendor names only, never contact details.
-- **No personal guest data:** guest counts are plain numbers.
-- **Inclusive by default:** high contrast, large click targets, status always shown as text, keyboard-operable floor plan, single free-text name field.
+## Privacy
 
-## Version control
-
-Small commits with a description of *what changed and why*, for example:
-
-```
-git add .
-git commit -m "Hide floor plan card when an event doesn't need one (Pawl feedback)"
-git push
-```
-
-## Roadmap
-
-1. Real room measurements for the floor plan builder
-2. Guest stats screen
-3. Brand colours from the TSH Brand Guide
-4. Test on-the-day access (paper vs phone) with staff
-5. Forward-looking for TSH IT: automatic sync with Monday / Eventbrite / Event Temple, guest-return tracking after GDPR review
+- Contact records contain only the details needed to coordinate events.
+- Deleting a contact removes its references from events.
+- Shared rundowns show vendor names and categories, not contact details.
+- Guest attendance is stored as a count; the app does not track individual guests.
+- Guest-return tracking is out of scope pending a privacy review.
