@@ -80,16 +80,3 @@ export const ROOM_LAYOUTS: RoomLayout[] = [
 ]
 export const ROOM_NAMES = ROOM_LAYOUTS.map((r) => r.name)
 export const roomLayout = (name: string): RoomLayout => ROOM_LAYOUTS.find((r) => r.name === name) ?? ROOM_LAYOUTS[0]
-
-/** Is this point inside the room's walls? */
-export function insideRoom(room: RoomLayout, x: number, y: number) {
-  if (x < 0 || y < 0 || x > room.w || y > room.h) return false
-  if (!room.outline) return true
-  let inside = false
-  const o = room.outline
-  for (let i = 0, j = o.length - 1; i < o.length; j = i++) {
-    const [xi, yi] = o[i], [xj, yj] = o[j]
-    if (yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) inside = !inside
-  }
-  return inside
-}

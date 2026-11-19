@@ -1,5 +1,5 @@
 import { useEffect, useRef, type ReactNode } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 
 export function Back({ to, label }: { to: string; label: string }) {
   return <Link to={to} className="btn back">← {label}</Link>
@@ -24,7 +24,5 @@ export function Modal({ title, lead, onClose, children }: { title: string; lead?
     </div>
   )
 }
-
-export function useGo() { const n = useNavigate(); return (to: string) => n(to) }
 
 export const Splash = ({ text = 'Loading…' }: { text?: string }) => <div className="splash">{text}</div>
