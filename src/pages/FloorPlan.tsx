@@ -6,7 +6,7 @@ import { Back, Modal } from '../components/ui'
 import PlanSvg, { type PlanHandlers } from '../components/PlanSvg'
 import { fmtShort, uid } from '../lib/dates'
 import { ROOM_NAMES, roomLayout } from '../lib/rooms'
-import { KIND_META, PALETTE, STARTERS, clampItem, itemName, newItem, planStats, snap, starterItems, statLabel } from '../lib/plan'
+import { KIND_META, PALETTE, STARTERS, clampItem, itemName, newItem, snap, starterItems, statLabel } from '../lib/plan'
 import { downloadFloorPlanPdf } from '../lib/pdf'
 import type { FloorPlan, PlanItem, PlanKind } from '../types'
 
