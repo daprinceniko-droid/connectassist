@@ -3,6 +3,9 @@ export type EventType = (typeof EVENT_TYPES)[number]
 /** Events saved before the type list changed ('Party', 'Live & DJ', ...) are shown as 'Events' instead of breaking. */
 export const normalizeType = (t: string | null | undefined): EventType => ((EVENT_TYPES as readonly string[]).includes(t ?? '') ? (t as EventType) : 'Events')
 
+/** Events saved before multi-room support stored one plan (or null) instead of a list. Always gives back a list. */
+export const toPlans = (v: unknown): FloorPlan[] => (Array.isArray(v) ? (v as FloorPlan[]) : v ? [v as FloorPlan] : [])
+
 export const CONTACT_CATEGORIES = ['DJ', 'Food', 'Drinks', 'Instructor', 'Sponsor', 'Arts & Crafts', 'Other'] as const
 export type ContactCategory = (typeof CONTACT_CATEGORIES)[number]
 
@@ -37,7 +40,7 @@ export interface EventRec {
   bookedBy: string
   coverUrl: string | null
   needsFloorPlan: boolean
-  floorPlan: FloorPlan | null
+  floorPlans: FloorPlan[] // one per room the event uses (most events have one)
   staffCount: number | null
   schedule: ScheduleItem[]
   todos: Todo[]
@@ -73,7 +76,7 @@ export interface SharedEvent {
   notes: string
   needsFloorPlan: boolean
   schedule: ScheduleItem[]
-  floorPlan: FloorPlan | null
+  floorPlans: FloorPlan[]
   contacts: { name: string; category: string }[]
 }
 

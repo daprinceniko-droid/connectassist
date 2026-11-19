@@ -1,4 +1,4 @@
-import type { Contact, EventRec } from '../types'
+import type { Contact, EventRec, FloorPlan } from '../types'
 import { fmtFull, fmtShort, todayISO } from './dates'
 
 export const isUpcoming = (e: EventRec) => e.date >= todayISO()
@@ -23,3 +23,10 @@ export const whenFull = (e: { date: string; time: string; endDate?: string | nul
   if (multi) return `${fmtFull(e.date)} ${e.time} → ${fmtFull(e.endDate!)} ${e.endTime ?? ''}`.trim()
   return `${fmtFull(e.date)} · ${e.time}${e.endTime ? ` – ${e.endTime}` : ''}`
 }
+
+/** The main room first, then any other room that has its own floor plan. */
+export const roomsOf = (e: { room: string; needsFloorPlan: boolean; floorPlans: FloorPlan[] }) =>
+  [...new Set([e.room, ...(e.needsFloorPlan ? e.floorPlans.map((p) => p.room) : [])])].filter(Boolean)
+/** Names for a list of plans: the room, with (1), (2)… added when the same room has more than one plan. */
+export const planTitles = (rooms: string[]) =>
+  rooms.map((r, i) => (rooms.filter((x) => x === r).length > 1 ? `${r} (${rooms.slice(0, i + 1).filter((x) => x === r).length})` : r))
