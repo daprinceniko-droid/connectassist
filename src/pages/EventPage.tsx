@@ -4,7 +4,7 @@ import { useStore } from '../state/StoreProvider'
 import { Back } from '../components/ui'
 import NotesBox from '../components/NotesBox'
 import PlanSvg from '../components/PlanSvg'
-import { statLabel } from '../lib/plan'
+import { planTitle, statLabel } from '../lib/plan'
 import { isUpcoming, needsUpdate, pct, peopleOf, whenFull, whenShort } from '../lib/select'
 
 export default function EventPage() {
@@ -20,6 +20,9 @@ export default function EventPage() {
   const logged = e.actualGuests != null
   const share = logged ? pct(e.actualGuests!, e.expectedGuests) : null
   const upcoming = isUpcoming(e)
+  const doneCount = e.todos.filter((t) => t.done).length
+  const toggleTodo = (tid: string) => patchEvent(e.id, { todos: e.todos.map((t) => (t.id === tid ? { ...t, done: !t.done } : t)) })
+  const fpLink = (q = '') => `/events/${e.id}/floorplan?${q}back=event`
   const chips = (list: typeof people) => list.length ? list.map((p) => <Link key={p.id} className="pill link" to={`/contacts?c=${p.id}`}>{p.name}</Link>) : <span style={{ fontWeight: 400, color: '#8a8a8a' }}>None</span>
 
   return (
@@ -32,7 +35,7 @@ export default function EventPage() {
         </div>
         <div className="actions">
           <Link className="btn" to={`/events/${e.id}/rundown`}>Rundown - BEO</Link>
-          {e.needsFloorPlan && <Link className="btn" to={`/events/${e.id}/floorplan?back=event`}>Floor plan</Link>}
+          {e.needsFloorPlan && <Link className="btn" to={fpLink()}>{e.floorPlans.length > 1 ? 'Floor plans' : 'Floor plan'}</Link>}
           <Link className="btn" to={`/events/${e.id}/edit`}>Edit</Link>
           <Link className="btn primary" to={`/events/new?from=${e.id}`}>Reuse this event</Link>
         </div>
@@ -83,16 +86,36 @@ export default function EventPage() {
         </section>
 
         <div className="stack">
+          <section className="card" aria-label="To do">
+            <div className="card-head"><span className="eyebrow">To do</span>{e.todos.length > 0 && <span className="pill">{doneCount}/{e.todos.length} done</span>}</div>
+            {e.todos.length === 0
+              ? <p className="empty-note" style={{ margin: 0 }}>No checks for this event. <Link to={`/events/${e.id}/edit`} style={{ textDecoration: 'underline' }}>Add some</Link>.</p>
+              : <ul className="todo light">
+                {e.todos.map((t) => (
+                  <li key={t.id}>
+                    <button aria-pressed={t.done} className={t.done ? 'done' : ''} onClick={() => toggleTodo(t.id)}>
+                      <span className="box">{t.done ? '✓' : ''}</span>{t.text}
+                    </button>
+                  </li>))}
+              </ul>}
+          </section>
           {e.needsFloorPlan && (
-            <section className="card" aria-label="Floor plan used">
-              <div className="card-head"><span className="eyebrow">Floor plan used</span></div>
-              {e.floorPlan
-                ? <Link to={`/events/${e.id}/floorplan?back=event`} className="fp-box" style={{ display: 'block' }}><PlanSvg plan={e.floorPlan} /></Link>
-                : <div className="fp-preview" aria-hidden style={{ display: 'grid', placeItems: 'center', color: '#8a8a8a', fontSize: 14, aspectRatio: 2.2 }}>No floor plan saved yet</div>}
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 14, gap: 10 }}>
-                <b>{e.floorPlan ? `${e.floorPlan.basedOn ?? 'Custom layout'} · ${statLabel(e.floorPlan.items).split(' · ')[0]}` : e.room}</b>
-                <Link className="link-arrow" to={`/events/${e.id}/floorplan?back=event`}>{e.floorPlan ? 'Open' : 'Create'} ↗</Link>
-              </div>
+            <section className="card" aria-label="Floor plans used">
+              <div className="card-head"><span className="eyebrow">{e.floorPlans.length > 1 ? 'Floor plans used' : 'Floor plan used'}</span></div>
+              {e.floorPlans.length === 0 ? (<>
+                <div className="fp-preview" aria-hidden style={{ display: 'grid', placeItems: 'center', color: '#8a8a8a', fontSize: 14, aspectRatio: 2.2 }}>No floor plan saved yet</div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 14, gap: 10 }}><b>{e.room}</b><Link className="link-arrow" to={fpLink()}>Create ↗</Link></div>
+              </>) : (<>
+                {e.floorPlans.map((p, i) => (
+                  <div key={p.id} style={{ marginTop: i ? 22 : 0 }}>
+                    <Link to={fpLink(`plan=${p.id}&`)} className="fp-box" style={{ display: 'block' }}><PlanSvg plan={p} /></Link>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 14, gap: 10 }}>
+                      <b>{planTitle(p, e.floorPlans)} · {statLabel(p.items).split(' · ')[0]}</b>
+                      <Link className="link-arrow" to={fpLink(`plan=${p.id}&`)}>Open ↗</Link>
+                    </div>
+                  </div>))}
+                <Link className="link-arrow" style={{ marginTop: 18, display: 'inline-block' }} to={fpLink('add=1&')}>+ Add another room ↗</Link>
+              </>)}
             </section>)}
           <section className="card" aria-label="Rundown - BEO">
             <div className="card-head"><span className="eyebrow">Rundown - BEO</span></div>

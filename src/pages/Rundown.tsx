@@ -4,7 +4,7 @@ import { useStore } from '../state/StoreProvider'
 import { useToast } from '../state/ToastProvider'
 import { Back, Modal } from '../components/ui'
 import PlanSvg from '../components/PlanSvg'
-import { statLabel } from '../lib/plan'
+import { planTitle, statLabel } from '../lib/plan'
 import { OWNERS } from '../config'
 import { uid } from '../lib/dates'
 import { nextUp, peopleOf, whenShort } from '../lib/select'
@@ -40,7 +40,7 @@ function ItemModal({ item, start, onSave, onDelete, onClose }: { item: ScheduleI
   )
 }
 
-const FLOOR_PLAN = (id: string) => `/events/${id}/floorplan?back=rundown`
+const FLOOR_PLAN = (id: string, q = '') => `/events/${id}/floorplan?${q}back=rundown`
 
 export default function Rundown() {
   const { id } = useParams()
@@ -120,11 +120,15 @@ function RundownEditor({ e }: { e: EventRec }) {
 
         <div className="stack">
           {e.needsFloorPlan && (
-            <section className="card" aria-label="Floor plan">
-              <div className="card-head"><span className="eyebrow">Floor plan</span>{e.floorPlan ? <span className="pill">✓ Added</span> : <span className="pill dark">To add</span>}</div>
-              {e.floorPlan ? (<>
-                <Link to={FLOOR_PLAN(e.id)} className="fp-box" style={{ display: 'block' }}><PlanSvg plan={e.floorPlan} /></Link>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 14, gap: 10 }}><b>{e.floorPlan.basedOn ?? 'Custom layout'} · {statLabel(e.floorPlan.items).split(' · ')[0]}</b><Link className="link-arrow" to={FLOOR_PLAN(e.id)}>Edit ↗</Link></div>
+            <section className="card" aria-label="Floor plans">
+              <div className="card-head"><span className="eyebrow">{e.floorPlans.length > 1 ? 'Floor plans' : 'Floor plan'}</span>{e.floorPlans.length ? <span className="pill">✓ Added</span> : <span className="pill dark">To add</span>}</div>
+              {e.floorPlans.length > 0 ? (<>
+                {e.floorPlans.map((p, i) => (
+                  <div key={p.id} style={{ marginTop: i ? 22 : 0 }}>
+                    <Link to={FLOOR_PLAN(e.id, `plan=${p.id}&`)} className="fp-box" style={{ display: 'block' }}><PlanSvg plan={p} /></Link>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 14, gap: 10 }}><b>{planTitle(p, e.floorPlans)} · {statLabel(p.items).split(' · ')[0]}</b><Link className="link-arrow" to={FLOOR_PLAN(e.id, `plan=${p.id}&`)}>Edit ↗</Link></div>
+                  </div>))}
+                <Link className="link-arrow" style={{ marginTop: 18, display: 'inline-block' }} to={FLOOR_PLAN(e.id, 'add=1&')}>+ Add another room ↗</Link>
               </>) : (<>
                 <Link to={FLOOR_PLAN(e.id)} className="drop"><span className="plus">+</span><b>Add floor plan</b><span>Pick a preset or build one</span></Link>
                 <button className="btn sm" style={{ marginTop: 14 }} onClick={() => patchEvent(e.id, { needsFloorPlan: false })}>This event doesn’t need one</button>
@@ -135,7 +139,7 @@ function RundownEditor({ e }: { e: EventRec }) {
             <div className="kv"><span>Guests expected</span><span>{e.expectedGuests ?? 'To be confirmed'}</span></div>
             <div className="kv"><span>DJ</span><span>{djs.join(', ') || 'To be confirmed'}</span></div>
             <div className="kv"><span>Vendors</span><span>{vendors.join(', ') || 'None'}</span></div>
-            <div className="kv"><span>Room</span><span>{e.room}</span></div>
+            <div className="kv"><span>{e.floorPlans.length > 1 ? 'Rooms' : 'Room'}</span><span>{e.room}</span></div>
           </section>
         </div>
 
