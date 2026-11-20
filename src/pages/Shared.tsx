@@ -4,7 +4,7 @@ import { db } from '../data/db'
 import { downloadRundownPdf } from '../lib/pdf'
 import { fmtFull } from '../lib/dates'
 import PlanSvg from '../components/PlanSvg'
-import { statLabel } from '../lib/plan'
+import { planTitle, statLabel } from '../lib/plan'
 import type { SharedEvent } from '../types'
 
 /** Public, read-only rundown for staff. No login, no contact details. */
@@ -24,9 +24,9 @@ export default function Shared() {
       <button className="btn primary" style={{ marginBottom: 28 }} onClick={() => downloadRundownPdf(e)}>Download PDF</button>
       <section className="card"><div className="card-head"><span className="eyebrow">Schedule</span></div>
         <div className="rows">{e.schedule.map((s) => <div key={s.id} className={`row ${s.highlight ? 'hl' : ''}`}><b>{s.time}</b><span>{s.title}</span><span className="o">{s.owner}</span></div>)}</div></section>
-      {e.floorPlan && e.needsFloorPlan && (
-        <section className="card" style={{ marginTop: 20 }}><div className="card-head"><span className="eyebrow">Floor plan</span><span className="pill">{statLabel(e.floorPlan.items).split(' · ')[0]}</span></div>
-          <div className="fp-box"><PlanSvg plan={e.floorPlan} /></div></section>)}
+      {e.needsFloorPlan && e.floorPlans.map((p) => (
+        <section key={p.id} className="card" style={{ marginTop: 20 }}><div className="card-head"><span className="eyebrow">{e.floorPlans.length > 1 ? `Floor plan · ${planTitle(p, e.floorPlans)}` : 'Floor plan'}</span><span className="pill">{statLabel(p.items).split(' · ')[0]}</span></div>
+          <div className="fp-box"><PlanSvg plan={p} /></div></section>))}
       <section className="card" style={{ marginTop: 20 }}><div className="card-head"><span className="eyebrow">Key details</span></div>
         <div className="kv"><span>Guests expected</span><span>{e.expectedGuests ?? 'To be confirmed'}</span></div>
         <div className="kv"><span>DJ</span><span>{dj.join(', ') || 'To be confirmed'}</span></div>
