@@ -37,7 +37,7 @@ export interface EventRec {
   bookedBy: string
   coverUrl: string | null
   needsFloorPlan: boolean
-  floorPlan: FloorPlan | null
+  floorPlans: FloorPlan[] // one per room the event uses
   staffCount: number | null
   schedule: ScheduleItem[]
   todos: Todo[]
@@ -73,7 +73,7 @@ export interface SharedEvent {
   notes: string
   needsFloorPlan: boolean
   schedule: ScheduleItem[]
-  floorPlan: FloorPlan | null
+  floorPlans: FloorPlan[]
   contacts: { name: string; category: string }[]
 }
 
@@ -83,5 +83,5 @@ export interface PlanItem {
   id: string; kind: PlanKind; x: number; y: number; w: number; h: number; rot: number
   seats?: number; cols?: number; rows?: number; label?: string
 }
-export interface FloorPlan { room: string; items: PlanItem[]; basedOn?: string }
+export interface FloorPlan { id: string; room: string; items: PlanItem[]; basedOn?: string }
 export interface Preset { id: string; name: string; room: string; items: PlanItem[]; createdAt: string }

@@ -54,7 +54,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }
   const upsert = <T extends { id: string }>(l: T[], x: T) => (l.some((i) => i.id === x.id) ? l.map((i) => (i.id === x.id ? x : i)) : [...l, x])
 
-  const saveEvent = (e: EventRec) => run(() => setEvents((l) => upsert(l, e)), () => db.saveEvent(e))
+  const saveEvent = (e: EventRec) => run(() => { ev.current = upsert(ev.current, e); setEvents((l) => upsert(l, e)) }, () => db.saveEvent(e))
   const patchEvent = async (id: string, patch: Partial<EventRec>) => {
     const cur = ev.current.find((e) => e.id === id)
     if (cur) await saveEvent({ ...cur, ...patch })

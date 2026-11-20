@@ -1,3 +1,4 @@
+import { plansOf } from '../lib/plan'
 import { normalizeType, type Contact, type ContactCategory, type EventRec, type Preset, type Rating, type SharedEvent } from '../types'
 import type { Db } from './db'
 import { supabase, supabaseConfigured } from './supabaseClient'
@@ -8,7 +9,7 @@ const eventFromRow = (r: any): EventRec => ({
   id: r.id, name: r.name, date: r.date, time: r.time, endDate: r.end_date ?? null, endTime: r.end_time ?? null, room: r.room, type: normalizeType(r.type),
   expectedGuests: r.expected_guests, actualGuests: r.actual_guests, rating: r.rating as Rating | null,
   reflection: r.reflection ?? '', notes: r.notes ?? '', foodBeverage: r.food_beverage ?? '', bookedBy: r.booked_by ?? '', coverUrl: r.cover_url, needsFloorPlan: r.needs_floor_plan,
-  floorPlan: r.floor_plan, staffCount: r.staff_count, schedule: r.schedule ?? [], todos: r.todos ?? [],
+  floorPlans: plansOf(r.floor_plan), staffCount: r.staff_count, schedule: r.schedule ?? [], todos: r.todos ?? [],
   contactIds: r.contact_ids ?? [], shareToken: r.share_token, isSample: r.is_sample, createdAt: r.created_at,
 })
 const eventToRow = (e: EventRec) => ({
@@ -16,7 +17,7 @@ const eventToRow = (e: EventRec) => ({
   food_beverage: e.foodBeverage, booked_by: e.bookedBy,
   expected_guests: e.expectedGuests, actual_guests: e.actualGuests, rating: e.rating,
   reflection: e.reflection, notes: e.notes, cover_url: e.coverUrl, needs_floor_plan: e.needsFloorPlan,
-  floor_plan: e.floorPlan, staff_count: e.staffCount, schedule: e.schedule, todos: e.todos,
+  floor_plan: e.floorPlans.length ? e.floorPlans : null, staff_count: e.staffCount, schedule: e.schedule, todos: e.todos,
   contact_ids: e.contactIds, share_token: e.shareToken, is_sample: e.isSample,
 })
 const contactFromRow = (r: any): Contact => ({
@@ -51,7 +52,10 @@ export const supabaseDb: Db = {
   async getShared(token) {
     const { data, error } = await supabase.rpc('get_shared_event', { p_token: token })
     if (error) throw new Error(error.message)
-    return (data as SharedEvent | null) ?? null
+    if (!data) return null
+    // the stored plan is a single object on older events and a list on newer ones
+    const d = data as any
+    return { ...d, floorPlans: plansOf(d.floorPlans ?? d.floorPlan) } as SharedEvent
   },
   async insertMany(events, contacts) {
     check(await supabase.from('contacts').insert(contacts.map(contactToRow)))

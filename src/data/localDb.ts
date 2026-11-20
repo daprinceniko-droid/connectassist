@@ -1,3 +1,4 @@
+import { plansOf } from '../lib/plan'
 import { normalizeType, type Contact, type EventRec, type Preset, type SharedEvent } from '../types'
 import type { Db } from './db'
 
@@ -6,7 +7,7 @@ interface Blob { events: EventRec[]; contacts: Contact[]; presets: Preset[] }
 const read = (): Blob => {
   try {
     const b = JSON.parse(localStorage.getItem(KEY) || '') as Blob
-    const events = b.events.map((e) => ({ ...e, type: normalizeType(e.type), endDate: e.endDate ?? null, endTime: e.endTime ?? null, foodBeverage: e.foodBeverage ?? '', bookedBy: e.bookedBy ?? '', todos: (e.todos ?? []).filter((t) => t.text !== 'Floor plan') }))
+    const events = b.events.map((e: any) => ({ ...e, floorPlans: plansOf(e.floorPlans ?? e.floorPlan), type: normalizeType(e.type), endDate: e.endDate ?? null, endTime: e.endTime ?? null, foodBeverage: e.foodBeverage ?? '', bookedBy: e.bookedBy ?? '', todos: (e.todos ?? []).filter((t: { text: string }) => t.text !== 'Floor plan') }))
     return { ...b, events, presets: b.presets ?? [] }
   } catch { return { events: [], contacts: [], presets: [] } }
 }
@@ -39,7 +40,7 @@ export const localDb: Db = {
     if (!e) return null
     return {
       name: e.name, date: e.date, time: e.time, endDate: e.endDate, endTime: e.endTime, bookedBy: e.bookedBy, foodBeverage: e.foodBeverage, room: e.room, type: e.type,
-      expectedGuests: e.expectedGuests, notes: e.notes, needsFloorPlan: e.needsFloorPlan, schedule: e.schedule, floorPlan: e.floorPlan,
+      expectedGuests: e.expectedGuests, notes: e.notes, needsFloorPlan: e.needsFloorPlan, schedule: e.schedule, floorPlans: e.floorPlans,
       contacts: b.contacts.filter((c) => e.contactIds.includes(c.id)).map((c) => ({ name: c.name, category: c.category })),
     }
   },
