@@ -26,7 +26,7 @@ export default function Dashboard() {
   const shift = (n: number) => setView((v) => { const d = new Date(v.y, v.m + n, 1); return { y: d.getFullYear(), m: d.getMonth() } })
   const search = (e: FormEvent) => { e.preventDefault(); if (q.trim()) nav(`/search?q=${encodeURIComponent(q.trim())}`) }
   const todos = next?.todos ?? []
-  const missingPlan = !!next && next.needsFloorPlan && !next.floorPlan
+  const missingPlan = !!next && next.needsFloorPlan && next.floorPlans.length === 0
   const openNext = () => next && nav(`/events/${next.id}`)
 
   return (
@@ -79,7 +79,6 @@ export default function Dashboard() {
         <div className="mid">
           <Link to="/events/new" className="tile span">New Event <span className="arrow" aria-hidden>↗</span></Link>
           <Link to="/gallery" className="tile span">Gallery <span className="arrow" aria-hidden>↗</span></Link>
-          <Link to={next ? `/events/${next.id}/rundown` : '/gallery'} className="tile span">Rundown - BEO <span className="arrow" aria-hidden>↗</span></Link>
           <Link to="/contacts" className="tile small">Contacts</Link>
           <div className="tile small soon" aria-disabled>Guest Stats <span className="pill grey" style={{ fontSize: 12 }}>Soon</span></div>
         </div>
