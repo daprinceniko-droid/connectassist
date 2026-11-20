@@ -129,4 +129,24 @@ export function starterItems(roomName: string, name: string): PlanItem[] {
   } else out.push(...fillGrid(r, 180, 60, 120, 60, 4, 2, avoid, (x, y) => newItem('sofa', x, y)))
   return out
 }
-export const starterPlan = (room: string, name: string): FloorPlan => ({ room, items: starterItems(room, name), basedOn: name })
+export const starterPlan = (room: string, name: string): FloorPlan => ({ id: uid(), room, items: starterItems(room, name), basedOn: name })
+
+/* ---------- events can have more than one floor plan (one per room) ---------- */
+/** Older events stored a single plan object (or null). Newer ones store a list. Both load as a list with stable ids. */
+export function plansOf(raw: unknown): FloorPlan[] {
+  const list = Array.isArray(raw) ? raw : raw ? [raw] : []
+  return (list as FloorPlan[]).filter((p) => p && Array.isArray(p.items)).map((p, i) => (p.id ? p : { ...p, id: `plan-${i}` }))
+}
+export const clonePlans = (ps: FloorPlan[]): FloorPlan[] => ps.map((p) => ({ ...clonePlan(p), id: uid() }))
+/** Replaces the plan with the same id, or adds it at the end. */
+export const upsertPlan = (list: FloorPlan[], p: FloorPlan): FloorPlan[] => (list.some((x) => x.id === p.id) ? list.map((x) => (x.id === p.id ? p : x)) : [...list, p])
+/** Tab / card title: the room name, with a number when the same room is used twice. */
+export function planTitle(p: FloorPlan, list: FloorPlan[]) {
+  const same = list.filter((x) => x.room === p.room)
+  return same.length > 1 ? `${p.room} ${same.findIndex((x) => x.id === p.id) + 1}` : p.room
+}
+/** "Restaurant & Bar, Lobby" for events that use more than one room. */
+export function roomsLabel(list: FloorPlan[], fallback: string) {
+  const rooms = [...new Set(list.map((p) => p.room))]
+  return rooms.length ? rooms.join(', ') : fallback
+}
