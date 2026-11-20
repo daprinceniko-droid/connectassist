@@ -4,7 +4,7 @@ import { fmtFull } from './dates'
 import { CONTACT_PERSON } from '../config'
 import { whenFull } from './select'
 import { roomLayout } from './rooms'
-import { canvasLabel, statLabel } from './plan'
+import { canvasLabel, planTitle, statLabel } from './plan'
 
 type RGB = [number, number, number]
 
@@ -85,13 +85,15 @@ export async function downloadRundownPdf(e: SharedEvent) {
   label('Event Notes')
   paragraph(e.notes, 'No notes.')
 
-  if (e.floorPlan && e.needsFloorPlan) {
-    doc.addPage(); y = 22
-    label('Floor plan')
-    doc.setFont('helvetica', 'bold'); doc.setFontSize(14); doc.setTextColor(...ink); doc.text(e.floorPlan.room, L, y); y += 5
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(10); doc.setTextColor(...grey)
-    doc.text([e.floorPlan.basedOn, statLabel(e.floorPlan.items)].filter(Boolean).join('  ·  '), L, y); y += 6
-    drawPlan(doc, e.floorPlan, L, y, R - L, 200)
+  if (e.needsFloorPlan) {
+    e.floorPlans.forEach((plan) => {
+      doc.addPage(); y = 22
+      label(e.floorPlans.length > 1 ? `Floor plan · ${planTitle(plan, e.floorPlans)}` : 'Floor plan')
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(14); doc.setTextColor(...ink); doc.text(plan.room, L, y); y += 5
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(10); doc.setTextColor(...grey)
+      doc.text([plan.basedOn, statLabel(plan.items)].filter(Boolean).join('  ·  '), L, y); y += 6
+      drawPlan(doc, plan, L, y, R - L, 200)
+    })
   }
 
   const n = doc.getNumberOfPages()
@@ -166,13 +168,17 @@ export function drawPlan(doc: jsPDF, plan: FloorPlan, x0: number, y0: number, ma
   return { w: (room.w + pad * 2) * k, h: (room.h + pad * 2) * k }
 }
 
-export async function downloadFloorPlanPdf(eventName: string, date: string, plan: FloorPlan) {
+export async function downloadFloorPlanPdf(eventName: string, date: string, plans: FloorPlan[]) {
   const { jsPDF } = await import('jspdf')
   const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' })
-  doc.setFont('helvetica', 'bold'); doc.setFontSize(22); doc.setTextColor(10, 10, 10); doc.text(`Floor plan · ${eventName}`, 15, 20)
-  doc.setFont('helvetica', 'normal'); doc.setFontSize(11); doc.setTextColor(138, 138, 138)
-  doc.text([fmtFull(date), plan.room, plan.basedOn, statLabel(plan.items)].filter(Boolean).join('  ·  '), 15, 28)
-  drawPlan(doc, plan, 15, 34, 267, 150)
-  doc.setFontSize(8); doc.text('Floor plan · The Social Hub The Hague · made with ConnectAssist · room outlines are approximate', 15, 200)
+  plans.forEach((plan, i) => {
+    if (i > 0) doc.addPage()
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(22); doc.setTextColor(10, 10, 10)
+    doc.text(plans.length > 1 ? `Floor plan · ${eventName} · ${planTitle(plan, plans)}` : `Floor plan · ${eventName}`, 15, 20)
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(11); doc.setTextColor(138, 138, 138)
+    doc.text([fmtFull(date), plan.room, plan.basedOn, statLabel(plan.items)].filter(Boolean).join('  ·  '), 15, 28)
+    drawPlan(doc, plan, 15, 34, 267, 150)
+    doc.setFontSize(8); doc.text('Floor plan · The Social Hub The Hague · made with ConnectAssist · room outlines are approximate', 15, 200)
+  })
   doc.save(`Floor plan - ${eventName.replace(/[^\w\- ]+/g, '')} - ${date}.pdf`)
 }
