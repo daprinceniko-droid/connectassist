@@ -17,6 +17,8 @@ interface Store {
   saveEvent: (e: EventRec) => Promise<void>
   patchEvent: (id: string, patch: Partial<EventRec>) => Promise<void>
   deleteEvent: (id: string) => Promise<void>
+  saveEvents: (list: EventRec[]) => Promise<void>
+  deleteEvents: (ids: string[]) => Promise<void>
   saveContact: (c: Contact) => Promise<void>
   deleteContact: (id: string) => Promise<void>
   ensureShareToken: (id: string) => Promise<string>
@@ -59,6 +61,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     const cur = ev.current.find((e) => e.id === id)
     if (cur) await saveEvent({ ...cur, ...patch })
   }
+  const saveEvents = (list: EventRec[]) => run(() => setEvents((l) => list.reduce((acc, e) => upsert(acc, e), l)), () => db.saveEvents(list))
+  const deleteEvents = (ids: string[]) => run(() => setEvents((l) => l.filter((e) => !ids.includes(e.id))), () => db.deleteEvents(ids))
   const deleteEvent = (id: string) => run(() => setEvents((l) => l.filter((e) => e.id !== id)), () => db.deleteEvent(id))
   const saveContact = (c: Contact) => run(() => setContacts((l) => upsert(l, c)), () => db.saveContact(c))
   const deleteContact = (id: string) =>
@@ -94,7 +98,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const hasSample = events.some((e) => e.isSample) || contacts.some((c) => c.isSample)
   return (
-    <Ctx.Provider value={{ loading, events, contacts, presets, savePreset, deletePreset, hasSample, saveEvent, patchEvent, deleteEvent, saveContact, deleteContact, ensureShareToken, stopSharing, loadSample, removeSample }}>
+    <Ctx.Provider value={{ loading, events, contacts, presets, savePreset, deletePreset, hasSample, saveEvent, saveEvents, patchEvent, deleteEvent, deleteEvents, saveContact, deleteContact, ensureShareToken, stopSharing, loadSample, removeSample }}>
       {children}
     </Ctx.Provider>
   )

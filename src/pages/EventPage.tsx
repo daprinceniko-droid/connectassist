@@ -1,20 +1,34 @@
 import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { useStore } from '../state/StoreProvider'
+import { useToast } from '../state/ToastProvider'
 import { Back } from '../components/ui'
 import NotesBox from '../components/NotesBox'
 import PlanSvg from '../components/PlanSvg'
-import { statLabel } from '../lib/plan'
+import { floorPlanName, floorPlansOf, statLabel } from '../lib/plan'
 import { isUpcoming, needsUpdate, pct, peopleOf, whenFull, whenShort } from '../lib/select'
+import { EXTEND_BY, cloneOccurrence, nextDates, repeatEvery } from '../lib/recurrence'
+import { fmtFull, todayISO } from '../lib/dates'
 
 export default function EventPage() {
   const { id } = useParams()
-  const { events, contacts, patchEvent } = useStore()
+  const { events, contacts, patchEvent, saveEvents } = useStore()
+  const toast = useToast()
   const [editStaff, setEditStaff] = useState(false)
   const e = events.find((x) => x.id === id)
   if (!e) return <div className="page"><Back to="/gallery" label="Gallery" /><p className="subtitle" style={{ marginTop: 24 }}>That event no longer exists.</p></div>
 
+  const series = e.seriesId && e.repeat ? events.filter((x) => x.seriesId === e.seriesId).sort((a, b) => a.date.localeCompare(b.date)) : []
+  const extend = async () => {
+    if (!e.repeat || !e.seriesId || series.length === 0) return
+    const last = series[series.length - 1]
+    const dates = nextDates(series[0].date, e.repeat, last.date, EXTEND_BY)
+    await saveEvents(dates.map((d) => cloneOccurrence(last, d, e.seriesId!, e.repeat!)))
+    toast(`${dates.length} more events added, until ${fmtFull(dates[dates.length - 1])}`)
+  }
   const people = peopleOf(e, contacts)
+  const floorPlans = floorPlansOf(e)
+  const rooms = floorPlans.length ? floorPlans.map(floorPlanName) : [e.room].filter(Boolean)
   const djs = people.filter((p) => p.category === 'DJ')
   const vendors = people.filter((p) => p.category !== 'DJ')
   const logged = e.actualGuests != null
@@ -28,11 +42,10 @@ export default function EventPage() {
       <div className="head" style={{ marginTop: 6 }}>
         <div>
           <h1 className="title" style={{ marginBottom: 8 }}>{e.name}</h1>
-          <p className="subtitle">{whenShort(e)} · {e.room} · {e.type}</p>
+          <p className="subtitle">{whenShort(e)} · {rooms.join(', ')} · {e.type}</p>
         </div>
         <div className="actions">
-          <Link className="btn" to={`/events/${e.id}/rundown`}>Rundown - BEO</Link>
-          {e.needsFloorPlan && <Link className="btn" to={`/events/${e.id}/floorplan?back=event`}>Floor plan</Link>}
+          {(e.needsFloorPlan || floorPlans.length > 0) && <Link className="btn" to={`/events/${e.id}/floorplan?back=event`}>Floor plans</Link>}
           <Link className="btn" to={`/events/${e.id}/edit`}>Edit</Link>
           <Link className="btn primary" to={`/events/new?from=${e.id}`}>Reuse this event</Link>
         </div>
@@ -66,7 +79,13 @@ export default function EventPage() {
           <div className="card-head"><span className="eyebrow">Key details</span></div>
           <div className="kv"><span>Date &amp; time</span><span>{whenFull(e)}</span></div>
           <div className="kv"><span>Booked by</span><span>{e.bookedBy || '—'}</span></div>
-          <div className="kv"><span>Room</span><span>{e.room}</span></div>
+          {series.length > 0 && e.repeat && (
+            <div className="kv"><span>Repeats</span>
+              <span style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                <span>{repeatEvery(e.repeat)} · {series.filter((x) => x.date >= todayISO()).length} upcoming, until {fmtFull(series[series.length - 1].date)}</span>
+                <button className="btn sm" onClick={extend}>Add {EXTEND_BY} more</button>
+              </span></div>)}
+          <div className="kv"><span>Rooms</span><span>{rooms.join(', ')}</span></div>
           <div className="kv"><span>Type</span><span>{e.type}</span></div>
           <div className="kv"><span>DJ</span><span>{chips(djs)}</span></div>
           <div className="kv"><span>Vendors</span><span>{chips(vendors)}</span></div>
@@ -83,16 +102,32 @@ export default function EventPage() {
         </section>
 
         <div className="stack">
-          {e.needsFloorPlan && (
-            <section className="card" aria-label="Floor plan used">
-              <div className="card-head"><span className="eyebrow">Floor plan used</span></div>
-              {e.floorPlan
-                ? <Link to={`/events/${e.id}/floorplan?back=event`} className="fp-box" style={{ display: 'block' }}><PlanSvg plan={e.floorPlan} /></Link>
-                : <div className="fp-preview" aria-hidden style={{ display: 'grid', placeItems: 'center', color: '#8a8a8a', fontSize: 14, aspectRatio: 2.2 }}>No floor plan saved yet</div>}
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 14, gap: 10 }}>
-                <b>{e.floorPlan ? `${e.floorPlan.basedOn ?? 'Custom layout'} · ${statLabel(e.floorPlan.items).split(' · ')[0]}` : e.room}</b>
-                <Link className="link-arrow" to={`/events/${e.id}/floorplan?back=event`}>{e.floorPlan ? 'Open' : 'Create'} ↗</Link>
-              </div>
+          {(e.needsFloorPlan || floorPlans.length > 0) && (
+            <section className="card" aria-label="Floor plans">
+              <div className="card-head"><span className="eyebrow">Floor plans</span><span className="pill">{floorPlans.length} room{floorPlans.length === 1 ? '' : 's'}</span></div>
+              {floorPlans.length ? floorPlans.map((plan, index) => (
+                <div key={floorPlanName(plan, index)} style={{ marginBottom: 18 }}>
+                  <Link to={`/events/${e.id}/floorplan?back=event`} className="fp-box" style={{ display: 'block' }}><PlanSvg plan={plan} /></Link>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 10, gap: 10 }}>
+                    <b>{floorPlanName(plan, index)} · {plan.room} · {plan.basedOn ?? 'Custom layout'} · {statLabel(plan.items).split(' · ')[0]}</b>
+                    <Link className="link-arrow" to={`/events/${e.id}/floorplan?back=event`}>Open ↗</Link>
+                  </div>
+                </div>
+              )) : <div className="fp-preview" aria-hidden style={{ display: 'grid', placeItems: 'center', color: '#8a8a8a', fontSize: 14, aspectRatio: 2.2 }}>No floor plan saved yet</div>}
+              <Link className="link-arrow" to={`/events/${e.id}/floorplan?back=event`}>{floorPlans.length ? 'Manage rooms' : 'Create floor plan'} ↗</Link>
+            </section>)}
+          {e.todos.length > 0 && (
+            <section className="card dark" aria-label="To do">
+              <div className="card-head"><span className="eyebrow">To Do</span><span className="pill">{e.todos.filter((todo) => todo.done).length}/{e.todos.length} done</span></div>
+              <ul className="todo">
+                {e.todos.map((todo) => (
+                  <li key={todo.id}>
+                    <button aria-pressed={todo.done} className={todo.done ? 'done' : ''} onClick={() => patchEvent(e.id, { todos: e.todos.map((item) => item.id === todo.id ? { ...item, done: !item.done } : item) })}>
+                      <span className="box">{todo.done ? '✓' : ''}</span>{todo.text}
+                    </button>
+                  </li>
+                ))}
+              </ul>
             </section>)}
           <section className="card" aria-label="Rundown - BEO">
             <div className="card-head"><span className="eyebrow">Rundown - BEO</span></div>

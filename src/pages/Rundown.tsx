@@ -4,7 +4,7 @@ import { useStore } from '../state/StoreProvider'
 import { useToast } from '../state/ToastProvider'
 import { Back, Modal } from '../components/ui'
 import PlanSvg from '../components/PlanSvg'
-import { statLabel } from '../lib/plan'
+import { floorPlanName, floorPlansOf, statLabel } from '../lib/plan'
 import { OWNERS } from '../config'
 import { uid } from '../lib/dates'
 import { nextUp, peopleOf, whenShort } from '../lib/select'
@@ -13,8 +13,8 @@ import { downloadRundownPdf } from '../lib/pdf'
 import { toShared } from '../lib/share'
 import type { EventRec, ScheduleItem } from '../types'
 
-function ItemModal({ item, start, onSave, onDelete, onClose }: { item: ScheduleItem | null; start: string; onSave: (i: ScheduleItem) => void; onDelete?: () => void; onClose: () => void }) {
-  const [time, setTime] = useState(item?.time ?? start)
+function ItemModal({ item, start, defaultTime, onSave, onDelete, onClose }: { item: ScheduleItem | null; start: string; defaultTime: string; onSave: (i: ScheduleItem) => void; onDelete?: () => void; onClose: () => void }) {
+  const [time, setTime] = useState(item?.time ?? defaultTime)
   const [title, setTitle] = useState(item?.title ?? '')
   const [owner, setOwner] = useState(item?.owner ?? 'Staff')
   return (
@@ -56,11 +56,14 @@ export default function Rundown() {
 function RundownEditor({ e }: { e: EventRec }) {
   const { contacts, patchEvent } = useStore()
   const toast = useToast()
+  const floorPlans = floorPlansOf(e)
   const [modal, setModal] = useState<'add' | ScheduleItem | null>(null)
 
   // Everything on this page is a draft until "Save" is pressed.
   const [schedule, setSchedule] = useState<ScheduleItem[]>(e.schedule)
   const [fb, setFb] = useState(e.foodBeverage)
+  // A new item starts at the time of the item you added last (or the last one on the timeline), so you can work down the list.
+  const [lastTime, setLastTime] = useState<string | null>(() => (e.schedule.length ? e.schedule[e.schedule.length - 1].time : null))
   const [notes, setNotes] = useState(e.notes)
   const dirty = JSON.stringify(schedule) !== JSON.stringify(e.schedule) || fb !== e.foodBeverage || notes !== e.notes
 
@@ -85,6 +88,7 @@ function RundownEditor({ e }: { e: EventRec }) {
   const djs = people.filter((p) => p.category === 'DJ').map((p) => p.name)
   const vendors = people.filter((p) => p.category !== 'DJ').map((p) => p.name)
   const saveItem = (i: ScheduleItem) => {
+    if (!schedule.some((x) => x.id === i.id)) setLastTime(i.time)
     setSchedule(sortSchedule(schedule.some((x) => x.id === i.id) ? schedule.map((x) => (x.id === i.id ? i : x)) : [...schedule, i]))
     setModal(null)
   }
@@ -119,13 +123,15 @@ function RundownEditor({ e }: { e: EventRec }) {
         </section>
 
         <div className="stack">
-          {e.needsFloorPlan && (
+          {(e.needsFloorPlan || floorPlans.length > 0) && (
             <section className="card" aria-label="Floor plan">
-              <div className="card-head"><span className="eyebrow">Floor plan</span>{e.floorPlan ? <span className="pill">✓ Added</span> : <span className="pill dark">To add</span>}</div>
-              {e.floorPlan ? (<>
-                <Link to={FLOOR_PLAN(e.id)} className="fp-box" style={{ display: 'block' }}><PlanSvg plan={e.floorPlan} /></Link>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 14, gap: 10 }}><b>{e.floorPlan.basedOn ?? 'Custom layout'} · {statLabel(e.floorPlan.items).split(' · ')[0]}</b><Link className="link-arrow" to={FLOOR_PLAN(e.id)}>Edit ↗</Link></div>
-              </>) : (<>
+              <div className="card-head"><span className="eyebrow">Floor plans</span>{floorPlans.length ? <span className="pill">{floorPlans.length} room{floorPlans.length === 1 ? '' : 's'}</span> : <span className="pill dark">To add</span>}</div>
+              {floorPlans.length ? floorPlans.map((plan, index) => (
+                <div key={floorPlanName(plan, index)} style={{ marginBottom: 18 }}>
+                  <Link to={FLOOR_PLAN(e.id)} className="fp-box" style={{ display: 'block' }}><PlanSvg plan={plan} /></Link>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 14, gap: 10 }}><b>{floorPlanName(plan, index)} · {plan.room} · {plan.basedOn ?? 'Custom layout'} · {statLabel(plan.items).split(' · ')[0]}</b><Link className="link-arrow" to={FLOOR_PLAN(e.id)}>Edit ↗</Link></div>
+                </div>
+              )) : (<>
                 <Link to={FLOOR_PLAN(e.id)} className="drop"><span className="plus">+</span><b>Add floor plan</b><span>Pick a preset or build one</span></Link>
                 <button className="btn sm" style={{ marginTop: 14 }} onClick={() => patchEvent(e.id, { needsFloorPlan: false })}>This event doesn’t need one</button>
               </>)}
@@ -151,9 +157,9 @@ function RundownEditor({ e }: { e: EventRec }) {
         </div>
       </div>
 
-      {modal === 'add' && <ItemModal item={null} start={e.time} onSave={saveItem} onClose={() => setModal(null)} />}
+      {modal === 'add' && <ItemModal item={null} start={e.time} defaultTime={lastTime ?? e.time} onSave={saveItem} onClose={() => setModal(null)} />}
       {modal && typeof modal === 'object' && (
-        <ItemModal item={modal} start={e.time} onSave={saveItem} onClose={() => setModal(null)}
+        <ItemModal item={modal} start={e.time} defaultTime={e.time} onSave={saveItem} onClose={() => setModal(null)}
           onDelete={() => { setSchedule(schedule.filter((x) => x.id !== (modal as ScheduleItem).id)); setModal(null) }} />)}
     </div>
   )

@@ -7,6 +7,8 @@ export interface Db {
   loadAll(): Promise<{ events: EventRec[]; contacts: Contact[]; presets: Preset[] }>
   saveEvent(e: EventRec): Promise<void>
   deleteEvent(id: string): Promise<void>
+  saveEvents(events: EventRec[]): Promise<void>
+  deleteEvents(ids: string[]): Promise<void>
   saveContact(c: Contact): Promise<void>
   deleteContact(id: string): Promise<void>
   savePreset(p: Preset): Promise<void>

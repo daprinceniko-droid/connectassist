@@ -19,6 +19,9 @@ export interface ScheduleItem {
 
 export interface Todo { id: string; text: string; done: boolean }
 
+/** How a recurring event repeats. */
+export type Repeat = 'weekly' | 'biweekly' | 'monthly'
+
 export interface EventRec {
   id: string
   name: string
@@ -35,9 +38,12 @@ export interface EventRec {
   notes: string
   foodBeverage: string // free text: "Event Food, Beverage & Extras"
   bookedBy: string
+  seriesId: string | null // events created together as one recurring series share this id
+  repeat: Repeat | null
   coverUrl: string | null
   needsFloorPlan: boolean
   floorPlan: FloorPlan | null
+  floorPlans?: FloorPlan[]
   staffCount: number | null
   schedule: ScheduleItem[]
   todos: Todo[]
@@ -74,6 +80,7 @@ export interface SharedEvent {
   needsFloorPlan: boolean
   schedule: ScheduleItem[]
   floorPlan: FloorPlan | null
+  floorPlans?: FloorPlan[]
   contacts: { name: string; category: string }[]
 }
 
@@ -83,5 +90,5 @@ export interface PlanItem {
   id: string; kind: PlanKind; x: number; y: number; w: number; h: number; rot: number
   seats?: number; cols?: number; rows?: number; label?: string
 }
-export interface FloorPlan { room: string; items: PlanItem[]; basedOn?: string }
+export interface FloorPlan { room: string; name?: string; items: PlanItem[]; basedOn?: string }
 export interface Preset { id: string; name: string; room: string; items: PlanItem[]; createdAt: string }

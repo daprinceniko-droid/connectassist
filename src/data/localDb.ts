@@ -6,7 +6,7 @@ interface Blob { events: EventRec[]; contacts: Contact[]; presets: Preset[] }
 const read = (): Blob => {
   try {
     const b = JSON.parse(localStorage.getItem(KEY) || '') as Blob
-    const events = b.events.map((e) => ({ ...e, type: normalizeType(e.type), endDate: e.endDate ?? null, endTime: e.endTime ?? null, foodBeverage: e.foodBeverage ?? '', bookedBy: e.bookedBy ?? '', todos: (e.todos ?? []).filter((t) => t.text !== 'Floor plan') }))
+    const events = b.events.map((e) => ({ ...e, type: normalizeType(e.type), endDate: e.endDate ?? null, endTime: e.endTime ?? null, foodBeverage: e.foodBeverage ?? '', bookedBy: e.bookedBy ?? '', seriesId: e.seriesId ?? null, repeat: e.repeat ?? null, floorPlans: e.floorPlans?.length ? e.floorPlans : e.floorPlan ? [e.floorPlan] : [], todos: (e.todos ?? []).filter((t) => t.text !== 'Floor plan') }))
     return { ...b, events, presets: b.presets ?? [] }
   } catch { return { events: [], contacts: [], presets: [] } }
 }
@@ -21,6 +21,8 @@ export const localDb: Db = {
   mode: 'local',
   async loadAll() { return read() },
   async saveEvent(e) { const b = read(); write({ ...b, events: upsert(b.events, e) }) },
+  async saveEvents(list) { const b = read(); write({ ...b, events: list.reduce((acc, e) => upsert(acc, e), b.events) }) },
+  async deleteEvents(ids) { const b = read(); const gone = new Set(ids); write({ ...b, events: b.events.filter((e) => !gone.has(e.id)) }) },
   async deleteEvent(id) { const b = read(); write({ ...b, events: b.events.filter((e) => e.id !== id) }) },
   async saveContact(c) { const b = read(); write({ ...b, contacts: upsert(b.contacts, c) }) },
   async deleteContact(id) {
@@ -39,7 +41,7 @@ export const localDb: Db = {
     if (!e) return null
     return {
       name: e.name, date: e.date, time: e.time, endDate: e.endDate, endTime: e.endTime, bookedBy: e.bookedBy, foodBeverage: e.foodBeverage, room: e.room, type: e.type,
-      expectedGuests: e.expectedGuests, notes: e.notes, needsFloorPlan: e.needsFloorPlan, schedule: e.schedule, floorPlan: e.floorPlan,
+      expectedGuests: e.expectedGuests, notes: e.notes, needsFloorPlan: e.needsFloorPlan, schedule: e.schedule, floorPlan: e.floorPlans?.[0] ?? e.floorPlan, floorPlans: e.floorPlans ?? (e.floorPlan ? [e.floorPlan] : []),
       contacts: b.contacts.filter((c) => e.contactIds.includes(c.id)).map((c) => ({ name: c.name, category: c.category })),
     }
   },

@@ -25,7 +25,7 @@ export function buildSample(): { events: EventRec[]; contacts: Contact[] } {
     return {
       id: uid(), name: o.name, date: addDays(todayISO(), o.off), time: o.time, endDate: null, endTime: o.end ?? null, room: o.room, type: o.type,
       expectedGuests: o.exp, actualGuests: o.act ?? null, rating: o.rating ?? null, reflection: o.refl ?? '',
-      notes: o.notes ?? '', foodBeverage: o.fb ?? '', bookedBy: 'Pawl Berger', coverUrl: null, needsFloorPlan, floorPlan: o.plan && needsFloorPlan ? starterPlan(o.room, o.plan) : null, staffCount: o.staff ?? null,
+      notes: o.notes ?? '', foodBeverage: o.fb ?? '', bookedBy: 'Pawl Berger', seriesId: null, repeat: null, coverUrl: null, needsFloorPlan, floorPlan: o.plan && needsFloorPlan ? starterPlan(o.room, o.plan) : null, staffCount: o.staff ?? null,
       schedule: o.rows ? timeline(o.time, o.rows) : [],
       todos: o.off >= 0 ? todo(...(o.todos ?? [])) : [],
       contactIds: o.people.map((p) => p.id), shareToken: null, isSample: true, createdAt: now,

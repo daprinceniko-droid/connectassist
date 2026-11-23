@@ -73,7 +73,7 @@ h1.title { font-size: 48px; line-height: 1.05; letter-spacing: -0.03em; font-wei
 .todo .done { color: #8a8a8a; text-decoration: line-through; }
 .todo .done .box { background: #fff; color: var(--ink); border-color: #fff; }
 .nextup .shortcuts { margin-top: auto; display: flex; gap: 12px; flex-wrap: wrap; }
-.mid { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: repeat(4, minmax(114px, 1fr)); gap: 32px; }
+.mid { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: repeat(3, minmax(114px, 1fr)); gap: 32px; }
 .tile { background: var(--card); border-radius: var(--r-card); padding: 0 36px; display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 32px; font-weight: 600; letter-spacing: -0.01em; transition: transform .15s; position: relative; }
 .tile:hover { transform: translateY(-2px); }
 .tile.span { grid-column: span 2; }
@@ -260,7 +260,7 @@ h1.title { font-size: 48px; line-height: 1.05; letter-spacing: -0.03em; font-wei
 .pal { background: #fff; border: 0; border-radius: 16px; padding: 14px 6px 12px; display: flex; flex-direction: column; align-items: center; gap: 8px; font-size: 13px; }
 .pal:hover { outline: 2px solid var(--ink); outline-offset: -2px; }
 .canvas-card { background: var(--card); border-radius: var(--r-card); padding: 20px; min-width: 0; }
-.canvas-bar { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 14px; }
+.canvas-bar { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 14px; flex-wrap: wrap; }
 .fp-scroll { overflow: auto; max-height: 68vh; border-radius: 18px; }
 .canvas-foot { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: 12px; flex-wrap: wrap; }
 .canvas-foot .saved { margin: 0; }

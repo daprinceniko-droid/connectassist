@@ -1,11 +1,12 @@
 import type { Contact, EventRec, SharedEvent } from '../types'
 import { peopleOf } from './select'
+import { floorPlansOf } from './plan'
 
 /** What a staff member may see: no contact details, no reflection or ratings. */
 export const toShared = (e: EventRec, contacts: Contact[]): SharedEvent => ({
   name: e.name, date: e.date, time: e.time, endDate: e.endDate, endTime: e.endTime, bookedBy: e.bookedBy, foodBeverage: e.foodBeverage,
   room: e.room, type: e.type, expectedGuests: e.expectedGuests,
-  notes: e.notes, needsFloorPlan: e.needsFloorPlan, schedule: e.schedule, floorPlan: e.floorPlan,
+  notes: e.notes, needsFloorPlan: e.needsFloorPlan, schedule: e.schedule, floorPlan: floorPlansOf(e)[0] ?? null, floorPlans: floorPlansOf(e),
   contacts: peopleOf(e, contacts).map((c) => ({ name: c.name, category: c.category })),
 })
 export const shareUrl = (token: string) => `${window.location.origin}/s/${token}`

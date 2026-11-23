@@ -2,8 +2,9 @@ import type { jsPDF } from 'jspdf'
 import type { FloorPlan, PlanItem, SharedEvent } from '../types'
 import { fmtFull } from './dates'
 import { CONTACT_PERSON } from '../config'
-import { whenFull } from './select'
+import { dateRange, timeRange } from './select'
 import { roomLayout } from './rooms'
+import { floorPlanName } from './plan'
 import { canvasLabel, statLabel } from './plan'
 
 type RGB = [number, number, number]
@@ -45,7 +46,8 @@ export async function downloadRundownPdf(e: SharedEvent) {
   label('Overview')
   rowsOf([
     ['Contact Person', CONTACT_PERSON],
-    ['Event Date', whenFull(e)],
+    ['Event Date', dateRange(e)],
+    ['Time', timeRange(e)],
     ['Booked By', e.bookedBy?.trim() || '—'],
   ])
   y += 5
@@ -85,13 +87,14 @@ export async function downloadRundownPdf(e: SharedEvent) {
   label('Event Notes')
   paragraph(e.notes, 'No notes.')
 
-  if (e.floorPlan && e.needsFloorPlan) {
+  const floorPlans = e.floorPlans?.length ? e.floorPlans : e.floorPlan ? [e.floorPlan] : []
+  if (e.needsFloorPlan) for (const [index, plan] of floorPlans.entries()) {
     doc.addPage(); y = 22
     label('Floor plan')
-    doc.setFont('helvetica', 'bold'); doc.setFontSize(14); doc.setTextColor(...ink); doc.text(e.floorPlan.room, L, y); y += 5
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(14); doc.setTextColor(...ink); doc.text(`${floorPlanName(plan, index)} · ${plan.room}`, L, y); y += 5
     doc.setFont('helvetica', 'normal'); doc.setFontSize(10); doc.setTextColor(...grey)
-    doc.text([e.floorPlan.basedOn, statLabel(e.floorPlan.items)].filter(Boolean).join('  ·  '), L, y); y += 6
-    drawPlan(doc, e.floorPlan, L, y, R - L, 200)
+    doc.text([plan.basedOn, statLabel(plan.items)].filter(Boolean).join('  ·  '), L, y); y += 6
+    drawPlan(doc, plan, L, y, R - L, 200)
   }
 
   const n = doc.getNumberOfPages()
@@ -171,7 +174,7 @@ export async function downloadFloorPlanPdf(eventName: string, date: string, plan
   const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' })
   doc.setFont('helvetica', 'bold'); doc.setFontSize(22); doc.setTextColor(10, 10, 10); doc.text(`Floor plan · ${eventName}`, 15, 20)
   doc.setFont('helvetica', 'normal'); doc.setFontSize(11); doc.setTextColor(138, 138, 138)
-  doc.text([fmtFull(date), plan.room, plan.basedOn, statLabel(plan.items)].filter(Boolean).join('  ·  '), 15, 28)
+  doc.text([fmtFull(date), `${floorPlanName(plan, 0)} · ${plan.room}`, plan.basedOn, statLabel(plan.items)].filter(Boolean).join('  ·  '), 15, 28)
   drawPlan(doc, plan, 15, 34, 267, 150)
   doc.setFontSize(8); doc.text('Floor plan · The Social Hub The Hague · made with ConnectAssist · room outlines are approximate', 15, 200)
   doc.save(`Floor plan - ${eventName.replace(/[^\w\- ]+/g, '')} - ${date}.pdf`)

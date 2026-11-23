@@ -1,5 +1,5 @@
 import type { Contact, EventRec } from '../types'
-import { fmtFull, fmtShort, todayISO } from './dates'
+import { fmtLong, fmtShort, todayISO } from './dates'
 
 export const isUpcoming = (e: EventRec) => e.date >= todayISO()
 export const needsUpdate = (e: EventRec) => e.date < todayISO() && e.actualGuests == null
@@ -12,14 +12,15 @@ export const pct = (actual: number, expected: number | null) => (expected ? Math
 
 /** Last day of the event (same as the start date for one-day events). */
 export const lastDay = (e: EventRec) => (e.endDate && e.endDate > e.date ? e.endDate : e.date)
-/** "Sep 5 · 18:00 – 23:00" or, across days, "Sep 5 18:00 → Sep 6 02:00". */
+/** "6 Nov · 18:00 – 23:00" or, across days, "6 Nov 20:00 → 7 Nov 02:00". */
 export const whenShort = (e: EventRec) => {
-  const multi = lastDay(e) !== e.date
-  if (multi) return `${fmtShort(e.date)} ${e.time} → ${fmtShort(lastDay(e))} ${e.endTime ?? ''}`.trim()
-  return `${fmtShort(e.date)} · ${e.time}${e.endTime ? ` – ${e.endTime}` : ''}`
+  if (lastDay(e) !== e.date) return `${fmtShort(e.date)} ${e.time} → ${fmtShort(lastDay(e))} ${e.endTime ?? ''}`.trim()
+  return `${fmtShort(e.date)} · ${timeRange(e)}`
 }
-export const whenFull = (e: { date: string; time: string; endDate?: string | null; endTime?: string | null }) => {
-  const multi = e.endDate && e.endDate > e.date
-  if (multi) return `${fmtFull(e.date)} ${e.time} → ${fmtFull(e.endDate!)} ${e.endTime ?? ''}`.trim()
-  return `${fmtFull(e.date)} · ${e.time}${e.endTime ? ` – ${e.endTime}` : ''}`
-}
+type When = { date: string; time: string; endDate?: string | null; endTime?: string | null }
+/** "20:00 – 02:00", or just "20:00" when there is no end time. */
+export const timeRange = (e: When) => `${e.time}${e.endTime ? ` – ${e.endTime}` : ''}`
+/** "Fri 6 Nov 2026", or "Fri 6 Nov 2026 – Sat 7 Nov 2026" for events that run over several days. */
+export const dateRange = (e: When) => (e.endDate && e.endDate > e.date ? `${fmtLong(e.date)} – ${fmtLong(e.endDate)}` : fmtLong(e.date))
+export const whenFull = (e: When) =>
+  e.endDate && e.endDate > e.date ? `${fmtLong(e.date)} ${e.time} → ${fmtLong(e.endDate)} ${e.endTime ?? ''}`.trim() : `${fmtLong(e.date)} · ${timeRange(e)}`

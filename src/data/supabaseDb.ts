@@ -7,16 +7,18 @@ export { supabaseConfigured }
 const eventFromRow = (r: any): EventRec => ({
   id: r.id, name: r.name, date: r.date, time: r.time, endDate: r.end_date ?? null, endTime: r.end_time ?? null, room: r.room, type: normalizeType(r.type),
   expectedGuests: r.expected_guests, actualGuests: r.actual_guests, rating: r.rating as Rating | null,
-  reflection: r.reflection ?? '', notes: r.notes ?? '', foodBeverage: r.food_beverage ?? '', bookedBy: r.booked_by ?? '', coverUrl: r.cover_url, needsFloorPlan: r.needs_floor_plan,
-  floorPlan: r.floor_plan, staffCount: r.staff_count, schedule: r.schedule ?? [], todos: r.todos ?? [],
+  reflection: r.reflection ?? '', notes: r.notes ?? '', foodBeverage: r.food_beverage ?? '', bookedBy: r.booked_by ?? '', seriesId: r.series_id ?? null, repeat: (r.repeat_rule ?? null) as EventRec['repeat'], coverUrl: r.cover_url, needsFloorPlan: r.needs_floor_plan,
+  floorPlan: Array.isArray(r.floor_plan) ? r.floor_plan[0] ?? null : r.floor_plan,
+  floorPlans: Array.isArray(r.floor_plans) && r.floor_plans.length ? r.floor_plans : Array.isArray(r.floor_plan) ? r.floor_plan : r.floor_plan ? [r.floor_plan] : [],
+  staffCount: r.staff_count, schedule: r.schedule ?? [], todos: r.todos ?? [],
   contactIds: r.contact_ids ?? [], shareToken: r.share_token, isSample: r.is_sample, createdAt: r.created_at,
 })
 const eventToRow = (e: EventRec) => ({
   id: e.id, name: e.name, date: e.date, time: e.time, end_date: e.endDate, end_time: e.endTime, room: e.room, type: e.type,
-  food_beverage: e.foodBeverage, booked_by: e.bookedBy,
+  food_beverage: e.foodBeverage, booked_by: e.bookedBy, series_id: e.seriesId, repeat_rule: e.repeat,
   expected_guests: e.expectedGuests, actual_guests: e.actualGuests, rating: e.rating,
   reflection: e.reflection, notes: e.notes, cover_url: e.coverUrl, needs_floor_plan: e.needsFloorPlan,
-  floor_plan: e.floorPlan, staff_count: e.staffCount, schedule: e.schedule, todos: e.todos,
+  floor_plan: e.floorPlans?.[0] ?? e.floorPlan, floor_plans: e.floorPlans ?? (e.floorPlan ? [e.floorPlan] : []), staff_count: e.staffCount, schedule: e.schedule, todos: e.todos,
   contact_ids: e.contactIds, share_token: e.shareToken, is_sample: e.isSample,
 })
 const contactFromRow = (r: any): Contact => ({
@@ -44,6 +46,8 @@ export const supabaseDb: Db = {
   },
   async saveEvent(e) { check(await supabase.from('events').upsert(eventToRow(e))) },
   async deleteEvent(id) { check(await supabase.from('events').delete().eq('id', id)) },
+  async saveEvents(list) { if (list.length) check(await supabase.from('events').upsert(list.map(eventToRow))) },
+  async deleteEvents(ids) { if (ids.length) check(await supabase.from('events').delete().in('id', ids)) },
   async saveContact(c) { check(await supabase.from('contacts').upsert(contactToRow(c))) },
   async deleteContact(id) { check(await supabase.from('contacts').delete().eq('id', id)) },
   async savePreset(p) { check(await supabase.from('floor_plan_presets').upsert({ id: p.id, name: p.name, room: p.room, items: p.items })) },

@@ -6,7 +6,7 @@ import { Back, Modal } from '../components/ui'
 import PlanSvg, { type PlanHandlers } from '../components/PlanSvg'
 import { fmtShort, uid } from '../lib/dates'
 import { ROOM_NAMES, roomLayout } from '../lib/rooms'
-import { KIND_META, PALETTE, STARTERS, clampItem, itemName, newItem, snap, starterItems, statLabel } from '../lib/plan'
+import { KIND_META, PALETTE, STARTERS, clampItem, floorPlanName, itemName, newItem, snap, starterItems, statLabel } from '../lib/plan'
 import { downloadFloorPlanPdf } from '../lib/pdf'
 import type { FloorPlan, PlanItem, PlanKind } from '../types'
 
@@ -36,7 +36,11 @@ export default function FloorPlanPage() {
   const e = events.find((x) => x.id === id)
   const eRef = useRef(e); eRef.current = e
 
-  const [plan, setPlan] = useState<FloorPlan>(() => e?.floorPlan ?? { room: ROOM_NAMES.includes(e?.room ?? '') ? e!.room : ROOM_NAMES[0], items: [] })
+  const [floorPlans, setFloorPlans] = useState<FloorPlan[]>(() => (e?.floorPlans?.length ? e.floorPlans : e?.floorPlan ? [e.floorPlan] : [{ room: ROOM_NAMES.includes(e?.room ?? '') ? e!.room : ROOM_NAMES[0], items: [] }]).map((p, index) => ({ ...p, name: floorPlanName(p, index) })))
+  const floorPlansRef = useRef(floorPlans); floorPlansRef.current = floorPlans
+  const [planIndex, setPlanIndex] = useState(0)
+  const planIndexRef = useRef(planIndex); planIndexRef.current = planIndex
+  const [plan, setPlan] = useState<FloorPlan>(() => floorPlans[0])
   const planRef = useRef(plan); planRef.current = plan
   const [past, setPast] = useState<FloorPlan[]>([])
   const [future, setFuture] = useState<FloorPlan[]>([])
@@ -55,7 +59,11 @@ export default function FloorPlanPage() {
     if (!cur || (!dirty.current && !force)) return false
     dirty.current = false
     const p = planRef.current
-    patchEvent(cur.id, { floorPlan: p, needsFloorPlan: true, room: p.room })
+    const activeIndex = planIndexRef.current
+    const updated = floorPlansRef.current.map((item, index) => index === activeIndex ? p : item)
+    floorPlansRef.current = updated
+    setFloorPlans(updated)
+    patchEvent(cur.id, { floorPlan: updated[0] ?? null, floorPlans: updated, needsFloorPlan: true })
     setSaved('saved')
     return true
   }
@@ -69,13 +77,54 @@ export default function FloorPlanPage() {
     window.addEventListener('beforeunload', warn)
     return () => window.removeEventListener('beforeunload', warn)
   }, [saved])
-  const status = saved === 'dirty' ? 'Unsaved changes' : saved === 'saved' || e?.floorPlan ? '✓ Saved' : 'Not saved yet'
+  const hasSavedPlans = !!e?.floorPlans?.length || !!e?.floorPlan
+  const status = saved === 'dirty' ? 'Unsaved changes' : saved === 'saved' || hasSavedPlans ? '✓ Saved' : 'Not saved yet'
 
   const push = () => { setPast((p) => [...p.slice(-99), planRef.current]); setFuture([]) }
-  const commit = (next: FloorPlan) => { push(); setPlan(next); dirty.current = true }
-  const edited = (items: PlanItem[]): FloorPlan => ({ room: plan.room, items }) // any manual change makes it a custom layout
-  const undo = () => { if (!past.length) return; setFuture([plan, ...future]); setPlan(past[past.length - 1]); setPast(past.slice(0, -1)); dirty.current = true; setSel(null) }
-  const redo = () => { if (!future.length) return; setPast([...past, plan]); setPlan(future[0]); setFuture(future.slice(1)); dirty.current = true; setSel(null) }
+  const updatePlan = (next: FloorPlan) => {
+    planRef.current = next
+    setPlan(next)
+    const updated = floorPlansRef.current.map((item, index) => index === planIndex ? next : item)
+    floorPlansRef.current = updated
+    setFloorPlans(updated)
+  }
+  const commit = (next: FloorPlan) => { push(); updatePlan(next); dirty.current = true }
+  const edited = (items: PlanItem[]): FloorPlan => ({ ...plan, items, basedOn: undefined })
+  const undo = () => { if (!past.length) return; setFuture([plan, ...future]); updatePlan(past[past.length - 1]); setPast(past.slice(0, -1)); dirty.current = true; setSel(null) }
+  const redo = () => { if (!future.length) return; setPast([...past, plan]); updatePlan(future[0]); setFuture(future.slice(1)); dirty.current = true; setSel(null) }
+  const switchPlan = (index: number) => {
+    if (index === planIndex || !floorPlansRef.current[index]) return
+    flush()
+    planIndexRef.current = index
+    setPlanIndex(index)
+    planRef.current = floorPlansRef.current[index]
+    setPlan(floorPlansRef.current[index])
+    setPast([]); setFuture([]); setSel(null)
+  }
+  const addRoomPlan = () => {
+    flush()
+    let number = 1
+    const names = new Set(floorPlansRef.current.map((item, index) => floorPlanName(item, index)))
+    while (names.has(`Room ${number}`)) number++
+    const newPlan = { room: planRef.current.room, name: `Room ${number}`, items: [] }
+    const updated = [...floorPlansRef.current, newPlan]
+    floorPlansRef.current = updated
+    planIndexRef.current = updated.length - 1
+    planRef.current = newPlan
+    setFloorPlans(updated); setPlanIndex(updated.length - 1); setPlan(newPlan)
+    setPast([]); setFuture([]); setSel(null); dirty.current = true; setSaved('dirty')
+  }
+  const removeRoomPlan = () => {
+    if (floorPlansRef.current.length <= 1) return
+    const updated = floorPlansRef.current.filter((_, index) => index !== planIndex)
+    const nextIndex = Math.min(planIndex, updated.length - 1)
+    floorPlansRef.current = updated
+    planIndexRef.current = nextIndex
+    planRef.current = updated[nextIndex]
+    setFloorPlans(updated); setPlanIndex(nextIndex); setPlan(updated[nextIndex])
+    patchEvent(e!.id, { floorPlan: updated[0] ?? null, floorPlans: updated, needsFloorPlan: true })
+    setPast([]); setFuture([]); setSel(null); dirty.current = false; setSaved('saved')
+  }
 
   const selected = plan.items.find((i) => i.id === sel) ?? null
   const patchItem = (patch: Partial<PlanItem>) => selected && commit(edited(plan.items.map((i) => (i.id === selected.id ? { ...i, ...patch } : i))))
@@ -86,8 +135,8 @@ export default function FloorPlanPage() {
   }
   const remove = () => { if (selected) { commit(edited(plan.items.filter((i) => i.id !== selected.id))); setSel(null) } }
   const duplicate = () => { if (selected) { const c = { ...selected, id: uid(), x: selected.x + 40, y: selected.y + 40 }; commit(edited([...plan.items, clampItem(c, room)])); setSel(c.id) } }
-  const applyPreset = (name: string, items: PlanItem[]) => { commit({ room: plan.room, items: items.map((i) => ({ ...i, id: uid() })), basedOn: name }); setSel(null) }
-  const changeRoom = (r: string) => { const l = roomLayout(r); commit({ ...plan, room: r, items: plan.items.map((i) => clampItem(i, l)) }) }
+  const applyPreset = (name: string, items: PlanItem[]) => { commit({ ...plan, items: items.map((i) => ({ ...i, id: uid() })), basedOn: name }); setSel(null) }
+  const changeRoom = (r: string) => commit({ ...plan, room: r, items: [], basedOn: undefined })
 
   const toSvg = (ev: { clientX: number; clientY: number }) => {
     const svg = svgEl.current!, pt = svg.createSVGPoint(); pt.x = ev.clientX; pt.y = ev.clientY
@@ -102,7 +151,7 @@ export default function FloorPlanPage() {
       if (nx === cur.x && ny === cur.y) return
       if (!d.moved) { push(); d.moved = true }
       dirty.current = true
-      setPlan({ ...planRef.current, basedOn: undefined, items: planRef.current.items.map((i) => (i.id === it.id ? clampItem({ ...i, x: nx, y: ny }, room) : i)) })
+      updatePlan({ ...planRef.current, basedOn: undefined, items: planRef.current.items.map((i) => (i.id === it.id ? clampItem({ ...i, x: nx, y: ny }, room) : i)) })
     },
     up: () => { drag.current = null },
     focus: (it) => setSel(it.id),
@@ -140,10 +189,10 @@ export default function FloorPlanPage() {
     <div className="page" onKeyDown={onKey}>
       <Back to={backTo} label={backLabel} />
       <div className="head" style={{ marginTop: 6 }}>
-        <div><h1 className="title" style={{ marginBottom: 8 }}>Floor plan</h1><p className="subtitle">{e.name} · {fmtShort(e.date)} · {plan.room}</p></div>
+        <div><h1 className="title" style={{ marginBottom: 8 }}>Floor plan</h1><p className="subtitle">{e.name} · {fmtShort(e.date)} · {floorPlanName(plan, planIndex)} · {plan.room}</p></div>
         <div className="actions">
           <span className={`pill ${saved === 'dirty' ? 'dark' : ''}`} style={{ alignSelf: 'center' }} aria-live="polite">{status}</span>
-          <button className="btn primary" disabled={saved === 'saved' || (saved === 'idle' && !!e.floorPlan)} onClick={() => { flush(true); toast('Floor plan saved') }}>{saved === 'saved' || (saved === 'idle' && e.floorPlan) ? '✓ Saved' : 'Save floor plan'}</button>
+          <button className="btn primary" disabled={saved === 'saved' || (saved === 'idle' && hasSavedPlans)} onClick={() => { flush(true); toast('Floor plans saved') }}>{saved === 'saved' || (saved === 'idle' && hasSavedPlans) ? '✓ Saved' : 'Save floor plans'}</button>
           <button className="btn" onClick={() => setModal('preset')}>Save as preset</button>
           <button className="btn" onClick={async () => { flush(); await downloadFloorPlanPdf(e.name, e.date, plan); toast('PDF exported') }}>Export PDF</button>
         </div>
@@ -162,8 +211,12 @@ export default function FloorPlanPage() {
 
         <section className="canvas-card" aria-label="Canvas">
           <div className="canvas-bar">
+            <select className="select" style={{ width: 'auto', borderRadius: 20, padding: '10px 40px 10px 18px', fontWeight: 500 }} aria-label="Floor plan room" value={planIndex} onChange={(ev) => switchPlan(Number(ev.target.value))}>
+              {floorPlans.map((item, index) => <option key={`${item.name}-${index}`} value={index}>{floorPlanName(item, index)}</option>)}</select>
             <select className="select" style={{ width: 'auto', borderRadius: 20, padding: '10px 40px 10px 18px', fontWeight: 500 }} aria-label="Room layout" value={plan.room} onChange={(ev) => changeRoom(ev.target.value)}>
-              {ROOM_NAMES.map((r) => <option key={r}>{r}</option>)}</select>
+              {[...new Set([...ROOM_NAMES, plan.room])].map((r) => <option key={r}>{r}</option>)}</select>
+            <button className="btn sm" onClick={addRoomPlan}>+ Add room</button>
+            {floorPlans.length > 1 && <button className="btn sm" onClick={removeRoomPlan}>Remove room</button>}
             <span className="pill" aria-live="polite">{statLabel(plan.items)}</span>
           </div>
           <div className="fp-scroll" onDragOver={(ev) => ev.preventDefault()} onDrop={onDrop}>
@@ -221,7 +274,7 @@ export default function FloorPlanPage() {
         onSave={async (name) => {
           const ex = mine.find((p) => p.name.toLowerCase() === name.toLowerCase())
           await savePreset({ id: ex?.id ?? uid(), name, room: plan.room, items: plan.items, createdAt: ex?.createdAt ?? new Date().toISOString() })
-          setPlan({ ...plan, basedOn: name }); dirty.current = true; setModal(null); toast('Preset saved') }} />}
+          updatePlan({ ...plan, basedOn: name }); dirty.current = true; setSaved('dirty'); setModal(null); toast('Preset saved') }} />}
       {modal === 'custom' && <CustomEl onClose={() => setModal(null)} onAdd={(label, w, h) => { add('custom', undefined, undefined, { label, w, h }); setModal(null); toast('Custom element added') }} />}
     </div>
   )

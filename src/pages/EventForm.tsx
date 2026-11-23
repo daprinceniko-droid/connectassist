@@ -3,13 +3,15 @@ import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useStore } from '../state/StoreProvider'
 import { useToast } from '../state/ToastProvider'
 import { Back, Modal } from '../components/ui'
+import ContactFormModal from '../components/ContactFormModal'
 import { ROOMS } from '../config'
 import { useAuth } from '../state/AuthProvider'
-import { EVENT_TYPES, type ContactCategory, type EventRec, type EventType, type FloorPlan, type Todo } from '../types'
-import { uid } from '../lib/dates'
+import { EVENT_TYPES, type ContactCategory, type EventRec, type EventType, type FloorPlan, type Repeat, type Todo } from '../types'
+import { fmtFull, todayISO, uid } from '../lib/dates'
+import { MAX_OCCURRENCES, REPEAT_OPTIONS, cloneOccurrence, defaultUntil, repeatEvery, seriesDates } from '../lib/recurrence'
 import { reuseSchedule } from '../lib/schedule'
 import { byDateDesc } from '../lib/select'
-import { clonePlan } from '../lib/plan'
+import { clonePlan, floorPlansOf } from '../lib/plan'
 
 /** The checks Pawl can switch on for an event. They are what shows up under "To Do" on the home page. */
 const CHECK_PRESETS = ['Make posters', 'Confirm DJ', 'Confirm caterer', 'Confirm instructor']
@@ -29,7 +31,7 @@ async function resizeImage(file: File, max = 900): Promise<string> {
 export default function EventForm() {
   const { id } = useParams()
   const [sp] = useSearchParams()
-  const { events, contacts, saveEvent, deleteEvent } = useStore()
+  const { events, contacts, saveEvent, saveEvents, saveContact, deleteEvent, deleteEvents } = useStore()
   const toast = useToast()
   const nav = useNavigate()
   const { user } = useAuth()
@@ -48,13 +50,17 @@ export default function EventForm() {
   const [custom, setCustom] = useState('')
   const [bookedBy, setBookedBy] = useState(editing?.bookedBy ?? user?.name ?? 'Pawl')
   const [usedFrom, setUsedFrom] = useState<string | null>(null)
+  const [repeat, setRepeat] = useState<Repeat | ''>('')
+  const [until, setUntil] = useState('')
+  const [applyAll, setApplyAll] = useState(false)
   const [contactIds, setContactIds] = useState<string[]>(editing?.contactIds ?? [])
   const [cover, setCover] = useState<string | null>(editing?.coverUrl ?? null)
   const [notes, setNotes] = useState(editing?.notes ?? '')
   const [q, setQ] = useState('')
   const [open, setOpen] = useState(false)
+  const [addContactOpen, setAddContactOpen] = useState(false)
   const [from, setFrom] = useState('')
-  const [srcPlan, setSrcPlan] = useState<FloorPlan | null>(null)
+  const [srcPlans, setSrcPlans] = useState<FloorPlan[]>([])
   const [errs, setErrs] = useState<Record<string, string>>({})
   const [confirmDel, setConfirmDel] = useState(false)
   const file = useRef<HTMLInputElement>(null)
@@ -63,7 +69,7 @@ export default function EventForm() {
   const applyFrom = (srcId: string) => {
     const s = events.find((e) => e.id === srcId); if (!s) return
     setType(s.type); setRoom(s.room); setGuests(s.expectedGuests?.toString() ?? ''); setNeedsFP(s.needsFloorPlan)
-    setContactIds(s.contactIds); setFrom(srcId); setUsedFrom(srcId); setSrcPlan(s.floorPlan); toast(`Started from ${s.name}`)
+    setContactIds(s.contactIds); setFrom(srcId); setUsedFrom(srcId); setSrcPlans(floorPlansOf(s)); toast(`Started from ${s.name}`)
   }
   useEffect(() => { const f = sp.get('from'); if (f && !editing) applyFrom(f) /* eslint-disable-next-line */ }, [])
 
@@ -75,11 +81,15 @@ export default function EventForm() {
   const toggleCheck = (text: string) => setTodos(hasCheck(text) ? todos.filter((t) => t.text !== text) : [...todos, { id: uid(), text, done: false }])
   const addCustom = () => { const t = custom.trim(); if (t && !hasCheck(t)) setTodos([...todos, { id: uid(), text: t, done: false }]); setCustom('') }
   const addContact = (c: (typeof contacts)[number]) => {
-    setContactIds([...contactIds, c.id]); setQ(''); setOpen(false)
+    setContactIds((list) => list.includes(c.id) ? list : [...list, c.id]); setQ(''); setOpen(false)
     const check = CHECK_FOR_CATEGORY[c.category]
-    if (check && !hasCheck(check)) setTodos((l) => [...l, { id: uid(), text: check, done: false }])
+    if (check) setTodos((list) => list.some((t) => t.text === check) ? list : [...list, { id: uid(), text: check, done: false }])
   }
   const endDateValue = endDate || date
+  // Recurring: the series is created in one go, one event per date, so each night keeps its own guest count and reflection.
+  const untilValue = until || (repeat && date ? defaultUntil(date, repeat) : '')
+  const dates = repeat && date && untilValue ? seriesDates(date, repeat, untilValue) : []
+  const upcomingInSeries = editing?.seriesId ? events.filter((x) => x.seriesId === editing.seriesId && x.id !== editing.id && x.date >= todayISO()) : []
 
   const submit = async (ev: FormEvent) => {
     ev.preventDefault()
@@ -90,6 +100,10 @@ export default function EventForm() {
     if (date && endDateValue < date) er.endDate = 'The end date can’t be before the start date.'
     else if (date && time && endTime && `${endDateValue} ${endTime}` <= `${date} ${time}`) er.endTime = 'The end has to be after the start.'
     if (guests && (!/^\d+$/.test(guests))) er.guests = 'Use a whole number.'
+    if (!editing && repeat) {
+      if (!untilValue || untilValue < date) er.until = 'Pick an end date on or after the start date.'
+      else if (dates.length > MAX_OCCURRENCES) er.until = `That makes more than ${MAX_OCCURRENCES} events. Pick an earlier end date; you can add more later.`
+    }
     setErrs(er)
     if (Object.keys(er).length) return
     const base = {
@@ -97,18 +111,34 @@ export default function EventForm() {
       expectedGuests: guests ? Number(guests) : null, needsFloorPlan: needsFP, contactIds, coverUrl: cover, notes, bookedBy: bookedBy.trim(), todos,
     }
     if (editing) {
-      await saveEvent({ ...editing, ...base })
-      toast('Event updated'); nav(`/events/${editing.id}`)
+      const mine = { ...editing, ...base }
+      if (applyAll && upcomingInSeries.length) {
+        // Only the things that define the series. Dates, notes, timelines and floor plans stay as they are on each event.
+        const shared = { name: base.name, time: base.time, endTime: base.endTime, room: base.room, type: base.type, expectedGuests: base.expectedGuests, needsFloorPlan: base.needsFloorPlan, contactIds: base.contactIds, bookedBy: base.bookedBy }
+        await saveEvents([mine, ...upcomingInSeries.map((x) => ({ ...x, ...shared }))])
+        toast(`Updated this event and ${upcomingInSeries.length} upcoming`)
+      } else { await saveEvent(mine); toast('Event updated') }
+      nav(`/events/${editing.id}`)
     } else {
       const src = usedFrom ? events.find((x) => x.id === usedFrom) : undefined
+      const copiedPlans = srcPlans.length && srcPlans[0].room === room ? srcPlans.map(clonePlan) : []
       const rec: EventRec = {
-        id: uid(), ...base, actualGuests: null, rating: null, reflection: '', floorPlan: srcPlan && needsFP && srcPlan.room === room ? clonePlan(srcPlan) : null, staffCount: null,
+        id: uid(), ...base, actualGuests: null, rating: null, reflection: '', floorPlan: needsFP ? copiedPlans[0] ?? null : null, floorPlans: needsFP ? copiedPlans : [], staffCount: null,
         // No auto-fill: only a reused event brings its timeline and food/beverage text along
         schedule: src ? reuseSchedule(src.schedule, src.time, time) : [], foodBeverage: src?.foodBeverage ?? '',
-        shareToken: null, isSample: false, createdAt: new Date().toISOString(),
+        shareToken: null, isSample: false, createdAt: new Date().toISOString(), seriesId: null, repeat: null,
       }
-      await saveEvent(rec)
-      toast(src ? `Event created. Timeline copied from ${src.name}` : 'Event created'); nav(`/events/${rec.id}/rundown`)
+      if (repeat) {
+        const sid = uid()
+        const first: EventRec = { ...rec, seriesId: sid, repeat }
+        const all = [first, ...dates.slice(1).map((d) => cloneOccurrence(first, d, sid, repeat))]
+        await saveEvents(all)
+        toast(`${all.length} events created, ${repeatEvery(repeat)} until ${fmtFull(dates[dates.length - 1])}`)
+      } else {
+        await saveEvent(rec)
+        toast(src ? `Event created. Timeline copied from ${src.name}` : 'Event created')
+      }
+      nav(`/events/${rec.id}/rundown`)
     }
   }
 
@@ -140,6 +170,26 @@ export default function EventForm() {
               <input id="et" type="time" className="input" value={endTime} onChange={(e) => setEndTime(e.target.value)} aria-invalid={!!errs.endTime} />
               {errs.endTime && <p className="error-text">{errs.endTime}</p>}</div>
           </div>
+          {!editing && (
+            <div className="grid-2">
+              <div className="field"><label htmlFor="rp">Repeats</label>
+                <select id="rp" className="select" value={repeat} onChange={(e) => setRepeat(e.target.value as Repeat | '')}>
+                  <option value="">Does not repeat</option>
+                  {REPEAT_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</select></div>
+              {repeat && (
+                <div className="field"><label htmlFor="ru">Repeat until</label>
+                  <input id="ru" type="date" className="input" value={untilValue} min={date || undefined} onChange={(e) => setUntil(e.target.value)} aria-invalid={!!errs.until} />
+                  {errs.until && <p className="error-text">{errs.until}</p>}</div>)}
+            </div>)}
+          {!editing && repeat && dates.length > 0 && !errs.until && (
+            <p className="hint" style={{ marginTop: -6 }}>
+              Creates <b>{dates.length > MAX_OCCURRENCES ? `more than ${MAX_OCCURRENCES}` : dates.length} event{dates.length === 1 ? '' : 's'}</b>: {dates.slice(0, 3).map(fmtFull).join(', ')}{dates.length > 3 ? ` … ${fmtFull(dates[dates.length - 1])}` : ''}. Each one keeps its own guest count and reflection.
+            </p>)}
+          {editing?.seriesId && editing.repeat && (
+            <label className="auto-note" style={{ display: 'flex', gap: 10, alignItems: 'center', margin: '4px 0 18px' }}>
+              <input type="checkbox" checked={applyAll} onChange={(e) => setApplyAll(e.target.checked)} />
+              <span>This event repeats {repeatEvery(editing.repeat)}. Apply name, time, room, type, guests, vendors and floor plan setting to the {upcomingInSeries.length} upcoming event{upcomingInSeries.length === 1 ? '' : 's'} in the series too.</span>
+            </label>)}
           <div className="grid-2">
             <div className="field"><label htmlFor="r">Room / layout</label>
               <select id="r" className="select" value={room} onChange={(e) => setRoom(e.target.value)}>
@@ -164,7 +214,7 @@ export default function EventForm() {
                 {matches.slice(0, 8).map((c) => (
                   <button type="button" key={c.id} onMouseDown={(e) => e.preventDefault()} onClick={() => addContact(c)}>
                     <span>{c.name}</span><small>{c.category}</small></button>))}
-                {matches.length === 0 && <p className="empty-note" style={{ padding: 12 }}>No match. <Link to="/contacts" style={{ textDecoration: 'underline' }}>Add them in Contacts</Link>.</p>}
+                {matches.length === 0 && <div className="empty-note" style={{ padding: 12 }}>No match. <button type="button" className="link-arrow" onClick={() => { setOpen(false); setAddContactOpen(true) }}>+ Add contact</button></div>}
               </div>)}
             {selected.length > 0 && (
               <div className="chip-row" style={{ marginTop: 6 }}>
@@ -219,10 +269,20 @@ export default function EventForm() {
         </div>
       </form>
       {confirmDel && editing && (
-        <Modal title="Delete this event?" lead={`“${editing.name}” and its rundown will be removed from the archive. This can’t be undone.`} onClose={() => setConfirmDel(false)}>
+        <Modal title={editing.seriesId ? 'Delete from the series?' : 'Delete this event?'} lead={editing.seriesId
+          ? `“${editing.name}” repeats ${editing.repeat ? repeatEvery(editing.repeat) : ''}. Delete only this one, or this one and the ${upcomingInSeries.length} upcoming after it. Past events are never touched. This can’t be undone.`
+          : `“${editing.name}” and its rundown will be removed from the archive. This can’t be undone.`} onClose={() => setConfirmDel(false)}>
           <div className="foot"><button className="btn outline" onClick={() => setConfirmDel(false)}>Keep event</button>
-            <button className="btn primary" onClick={async () => { await deleteEvent(editing.id); toast('Event deleted'); nav('/gallery') }}>Delete event</button></div>
+            {editing.seriesId && upcomingInSeries.length > 0 && (
+              <button className="btn outline" onClick={async () => { await deleteEvents([editing.id, ...upcomingInSeries.map((x) => x.id)]); toast(`${upcomingInSeries.length + 1} events deleted`); nav('/gallery') }}>This and all upcoming</button>)}
+            <button className="btn primary" onClick={async () => { await deleteEvent(editing.id); toast('Event deleted'); nav('/gallery') }}>{editing.seriesId ? 'Only this event' : 'Delete event'}</button></div>
         </Modal>)}
+      {addContactOpen && <ContactFormModal initial={null} onClose={() => setAddContactOpen(false)} onSave={async (c) => {
+        await saveContact(c)
+        addContact(c)
+        setAddContactOpen(false)
+        toast(`${c.name} added to this event`)
+      }} />}
     </div>
   )
 }

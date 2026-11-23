@@ -1,4 +1,4 @@
-import type { FloorPlan, PlanItem, PlanKind } from '../types'
+import type { EventRec, FloorPlan, PlanItem, PlanKind } from '../types'
 import { uid } from './dates'
 import { roomLayout, type RoomLayout } from './rooms'
 
@@ -43,6 +43,9 @@ export function itemName(i: PlanItem, items: PlanItem[]) {
 export const clampItem = (i: PlanItem, room: RoomLayout): PlanItem => ({ ...i, x: clamp(i.x, 0, room.w), y: clamp(i.y, 0, room.h) })
 /** Same layout with fresh ids, so a copy never shares ids with its source. */
 export const cloneItems = (items: PlanItem[]) => items.map((i) => ({ ...i, id: uid() }))
+export const floorPlansOf = (event: Pick<EventRec, 'floorPlan' | 'floorPlans'>): FloorPlan[] =>
+  event.floorPlans?.length ? event.floorPlans : event.floorPlan ? [event.floorPlan] : []
+export const floorPlanName = (plan: FloorPlan, index: number) => plan.name ?? `Room ${index + 1}`
 export const clonePlan = (p: FloorPlan): FloorPlan => ({ ...p, items: cloneItems(p.items) })
 
 /* ---------- starter presets, generated to fit each room ---------- */
