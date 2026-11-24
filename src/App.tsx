@@ -1,18 +1,20 @@
+import { lazy, Suspense } from 'react'
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { useAuth } from './state/AuthProvider'
 import { StoreProvider, useStore } from './state/StoreProvider'
 import { Splash } from './components/ui'
-import Login from './pages/Login'
-import Dashboard from './pages/Dashboard'
-import Gallery from './pages/Gallery'
-import EventForm from './pages/EventForm'
-import EventPage from './pages/EventPage'
-import PostEvent from './pages/PostEvent'
-import Rundown from './pages/Rundown'
-import Contacts from './pages/Contacts'
-import Search from './pages/Search'
-import Shared from './pages/Shared'
-import FloorPlan from './pages/FloorPlan'
+
+const Login = lazy(() => import('./pages/Login'))
+const Dashboard = lazy(() => import('./pages/Dashboard'))
+const Gallery = lazy(() => import('./pages/Gallery'))
+const EventForm = lazy(() => import('./pages/EventForm'))
+const EventPage = lazy(() => import('./pages/EventPage'))
+const PostEvent = lazy(() => import('./pages/PostEvent'))
+const Rundown = lazy(() => import('./pages/Rundown'))
+const Contacts = lazy(() => import('./pages/Contacts'))
+const Search = lazy(() => import('./pages/Search'))
+const Shared = lazy(() => import('./pages/Shared'))
+const FloorPlan = lazy(() => import('./pages/FloorPlan'))
 
 function Private() {
   const { user, loading } = useAuth()
@@ -42,10 +44,12 @@ function Private() {
 export default function App() {
   const { user } = useAuth()
   return (
-    <Routes>
-      <Route path="/login" element={user ? <Navigate to="/" replace /> : <Login />} />
-      <Route path="/s/:token" element={<Shared />} />
-      <Route path="/*" element={<StoreProvider><Private /></StoreProvider>} />
-    </Routes>
+    <Suspense fallback={<Splash />}>
+      <Routes>
+        <Route path="/login" element={user ? <Navigate to="/" replace /> : <Login />} />
+        <Route path="/s/:token" element={<Shared />} />
+        <Route path="/*" element={<StoreProvider><Private /></StoreProvider>} />
+      </Routes>
+    </Suspense>
   )
 }

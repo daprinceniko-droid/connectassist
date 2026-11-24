@@ -6,6 +6,7 @@ import { whenFull } from '../lib/select'
 import PlanSvg from '../components/PlanSvg'
 import { floorPlanName, floorPlansOf, statLabel } from '../lib/plan'
 import type { SharedEvent } from '../types'
+import { Back } from '../components/ui'
 
 /** Public, read-only rundown for staff. No login, no contact details. */
 export default function Shared() {
@@ -20,6 +21,7 @@ export default function Shared() {
   const rooms = floorPlans.length ? floorPlans.map(floorPlanName) : [e.room].filter(Boolean)
   return (
     <div className="shared">
+      <div className="topbar" style={{ marginBottom: 28 }}><Back to="/" label="Home" /></div>
       <span className="eyebrow">Rundown · The Social Hub The Hague</span>
       <h1 style={{ marginTop: 14 }}>{e.name}</h1>
       <p className="subtitle" style={{ marginBottom: 28 }}>{whenFull(e)} · {rooms.join(', ')}</p>

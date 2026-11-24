@@ -6,10 +6,24 @@ import { addDays, fmtCal, monthGrid, monthName, parseISO, todayISO, weekdayLette
 import { byDateAsc, lastDay, nextUp, whenShort } from '../lib/select'
 
 export default function Dashboard() {
-  const { events, patchEvent, hasSample, removeSample, loadSample } = useStore()
+  const { events, contacts, patchEvent, hasSample, removeSample, loadSample } = useStore()
   const { user, demo, signOut } = useAuth()
   const nav = useNavigate()
   const [q, setQ] = useState('')
+  const [suggestionsOpen, setSuggestionsOpen] = useState(false)
+  const suggestionQuery = q.trim().toLowerCase()
+  const suggestions = useMemo(() => {
+    if (!suggestionQuery) return []
+    const eventSuggestions = events
+      .filter((event) => [event.name, event.type, event.room, event.notes].some((value) => value.toLowerCase().includes(suggestionQuery)))
+      .slice(0, 4)
+      .map((event) => ({ id: `event-${event.id}`, label: event.name, detail: `${event.type} · ${event.room}`, to: `/events/${event.id}` }))
+    const contactSuggestions = contacts
+      .filter((contact) => `${contact.name} ${contact.speciality} ${contact.category}`.toLowerCase().includes(suggestionQuery))
+      .slice(0, 4)
+      .map((contact) => ({ id: `contact-${contact.id}`, label: contact.name, detail: contact.speciality || contact.category, to: `/contacts?c=${contact.id}` }))
+    return [...eventSuggestions, ...contactSuggestions].slice(0, 6)
+  }, [contacts, events, suggestionQuery])
   const today = todayISO()
   const [sel, setSel] = useState(today)
   const [view, setView] = useState(() => { const d = new Date(); return { y: d.getFullYear(), m: d.getMonth() } })
@@ -34,7 +48,36 @@ export default function Dashboard() {
       <div className="dash-top">
         <h1>Hi {user?.name ?? 'Pawl'}!</h1>
         <form onSubmit={search} role="search">
-          <input className="input pill-input" aria-label="Search events, DJs, vendors" placeholder="Search events, DJs, vendors…" value={q} onChange={(e) => setQ(e.target.value)} />
+          <div className="search-suggest">
+            <input
+              className="input pill-input"
+              aria-label="Search events, DJs, vendors"
+              aria-autocomplete="list"
+              aria-expanded={suggestionsOpen && suggestions.length > 0}
+              role="combobox"
+              placeholder="Search events, DJs, vendors…"
+              value={q}
+              onChange={(e) => { setQ(e.target.value); setSuggestionsOpen(true) }}
+              onFocus={() => setSuggestionsOpen(true)}
+              onBlur={() => setTimeout(() => setSuggestionsOpen(false), 150)}
+            />
+            {suggestionsOpen && suggestions.length > 0 && (
+              <div className="search-suggestions" role="listbox">
+                {suggestions.map((suggestion) => (
+                  <button
+                    type="button"
+                    role="option"
+                    key={suggestion.id}
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => nav(suggestion.to)}
+                  >
+                    <span>{suggestion.label}</span>
+                    <small>{suggestion.detail}</small>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </form>
         <div className="who">{!demo && <button className="btn sm" onClick={signOut}>Sign out</button>}</div>
       </div>

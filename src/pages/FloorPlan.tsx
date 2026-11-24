@@ -180,14 +180,17 @@ export default function FloorPlanPage() {
   const back = sp.get('back')
   const backTo = !e ? '/gallery' : back === 'rundown' ? `/events/${e.id}/rundown` : back === 'home' ? '/' : `/events/${e.id}`
   const backLabel = back === 'rundown' ? 'Rundown - BEO' : back === 'home' ? 'Home' : 'Event'
-  if (!e) return <div className="page"><Back to="/gallery" label="Gallery" /><p className="subtitle" style={{ marginTop: 24 }}>That event no longer exists.</p></div>
+  if (!e) return <div className="page"><div className="topbar"><Back to="/" label="Home" /><Back to="/gallery" label="Gallery" /></div><p className="subtitle" style={{ marginTop: 24 }}>That event no longer exists.</p></div>
   const isSeating = selected?.kind === 'seating'
   const hasSeats = selected && (selected.kind === 'round' || selected.kind === 'long' || selected.kind === 'sofa')
   const resizable = selected && !['round', 'plant', 'seating', 'door'].includes(selected.kind) || selected?.kind === 'door'
 
   return (
     <div className="page" onKeyDown={onKey}>
-      <Back to={backTo} label={backLabel} />
+      <div className="topbar">
+        {backTo !== '/' && <Back to="/" label="Home" />}
+        <Back to={backTo} label={backLabel} />
+      </div>
       <div className="head" style={{ marginTop: 6 }}>
         <div><h1 className="title" style={{ marginBottom: 8 }}>Floor plan</h1><p className="subtitle">{e.name} · {fmtShort(e.date)} · {floorPlanName(plan, planIndex)} · {plan.room}</p></div>
         <div className="actions">

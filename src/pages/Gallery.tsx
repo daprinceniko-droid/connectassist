@@ -1,5 +1,6 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { createPortal } from 'react-dom'
 import { useStore } from '../state/StoreProvider'
 import { Back } from '../components/ui'
 import { EVENT_TYPES } from '../types'
@@ -13,6 +14,11 @@ export default function Gallery() {
   const [year, setYear] = useState(thisYear)
   const [type, setType] = useState<string>('All')
   const [q, setQ] = useState('')
+  const [activeOverview, setActiveOverview] = useState<{ id: string; target: HTMLAnchorElement } | null>(null)
+  const [overviewVisible, setOverviewVisible] = useState(false)
+  const [overviewPosition, setOverviewPosition] = useState<{ top: number; left: number } | null>(null)
+  const overviewRef = useRef<HTMLDivElement>(null)
+  const hideOverviewTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const inYear = events.filter((e) => e.date.startsWith(year))
   const term = q.trim().toLowerCase()
@@ -21,11 +27,51 @@ export default function Gallery() {
     .filter((e) => !term || [e.name, e.type, e.room, ...peopleOf(e, contacts).map((p) => p.name)].some((s) => s.toLowerCase().includes(term)))
     .sort(byDateDesc)
   const count = (t: string) => inYear.filter((e) => t === 'All' || e.type === t).length
+  const showOverview = (id: string, target: HTMLAnchorElement) => {
+    if (hideOverviewTimer.current) clearTimeout(hideOverviewTimer.current)
+    setActiveOverview({ id, target })
+    setOverviewVisible(true)
+  }
+  const hideOverview = () => {
+    if (hideOverviewTimer.current) clearTimeout(hideOverviewTimer.current)
+    setOverviewVisible(false)
+    hideOverviewTimer.current = setTimeout(() => {
+      setActiveOverview(null)
+      setOverviewPosition(null)
+    }, 150)
+  }
+  useEffect(() => () => {
+    if (hideOverviewTimer.current) clearTimeout(hideOverviewTimer.current)
+  }, [])
+  useLayoutEffect(() => {
+    if (!activeOverview || !overviewRef.current) return
+    const updatePosition = () => {
+      const cardRect = activeOverview.target.getBoundingClientRect()
+      const popupRect = overviewRef.current?.getBoundingClientRect()
+      if (!popupRect) return
+      const margin = 12
+      const gap = 8
+      const top = cardRect.bottom + gap + popupRect.height <= window.innerHeight - margin
+        ? cardRect.bottom + gap
+        : cardRect.top - popupRect.height - gap
+      setOverviewPosition({
+        top: Math.max(margin, Math.min(top, window.innerHeight - popupRect.height - margin)),
+        left: Math.max(margin, Math.min(cardRect.left, window.innerWidth - popupRect.width - margin)),
+      })
+    }
+    updatePosition()
+    window.addEventListener('scroll', updatePosition, true)
+    window.addEventListener('resize', updatePosition)
+    return () => {
+      window.removeEventListener('scroll', updatePosition, true)
+      window.removeEventListener('resize', updatePosition)
+    }
+  }, [activeOverview])
 
   return (
     <div className="page with-side">
       <aside className="side">
-        <div><Back to="/" label="Dashboard" /></div>
+        <div><Back to="/" label="Home" /></div>
         <span className="eyebrow">Type</span>
         {['All', ...EVENT_TYPES].map((t) => (
           <button key={t} className={`nav-row ${type === t ? 'on' : ''}`} aria-pressed={type === t} onClick={() => setType(t)}>
@@ -43,7 +89,16 @@ export default function Gallery() {
         <div className="cards">
           <Link to="/events/new" className="ecard new"><span className="plus">+</span>New event</Link>
           {shown.map((e) => (
-            <Link key={e.id} to={`/events/${e.id}`} className={`ecard ${e.coverUrl ? 'cover' : ''}`} style={e.coverUrl ? { backgroundImage: `url(${e.coverUrl})` } : undefined}>
+            <Link
+              key={e.id}
+              to={`/events/${e.id}`}
+              className={`ecard ${e.coverUrl ? 'cover' : ''}`}
+              style={e.coverUrl ? { backgroundImage: `url(${e.coverUrl})` } : undefined}
+              onMouseEnter={(ev) => showOverview(e.id, ev.currentTarget)}
+              onMouseLeave={(ev) => { if (document.activeElement !== ev.currentTarget) hideOverview() }}
+              onFocus={(ev) => showOverview(e.id, ev.currentTarget)}
+              onBlur={hideOverview}
+            >
               <div className="top">
                 <span className="pill">{e.type}</span>
                 {isUpcoming(e) ? <span className="pill dark">Upcoming</span> : needsUpdate(e) && <span className="pill dark">Needs update</span>}
@@ -55,6 +110,28 @@ export default function Gallery() {
             </Link>
           ))}
         </div>
+        {activeOverview && (() => {
+          const event = events.find((item) => item.id === activeOverview.id)
+          if (!event) return null
+          return createPortal(
+            <div
+              ref={overviewRef}
+              className={`ecard-overview ${overviewVisible && overviewPosition ? 'visible' : ''}`}
+              style={overviewPosition ? { top: overviewPosition.top, left: overviewPosition.left } : undefined}
+              aria-label={`Overview of ${event.name}`}
+            >
+              <div className="ecard-overview-counts">
+                <span><small>Expected</small><b>{event.expectedGuests ?? 'Not set'}</b></span>
+                <span><small>Showed up</small><b>{event.actualGuests ?? 'Not recorded'}</b></span>
+              </div>
+              <div className="ecard-overview-reflection">
+                <small>How it went</small>
+                <p>{event.reflection.trim() || 'No reflection added yet.'}</p>
+              </div>
+            </div>,
+            document.body,
+          )
+        })()}
         {shown.length === 0 && (
           <p className="empty-note" style={{ marginTop: 28 }}>
             {events.length === 0 ? <>No events yet. <button className="btn sm" onClick={loadSample}>Load sample events</button></> : 'No events match these filters.'}

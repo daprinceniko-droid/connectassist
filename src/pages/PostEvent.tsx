@@ -16,7 +16,7 @@ export default function PostEvent() {
   const [n, setN] = useState<number>(e?.actualGuests ?? e?.expectedGuests ?? 0)
   const [rating, setRating] = useState<Rating | null>(e?.rating ?? null)
   const [refl, setRefl] = useState(e?.reflection ?? '')
-  if (!e) return <div className="page"><Back to="/gallery" label="Gallery" /><p className="subtitle">That event no longer exists.</p></div>
+  if (!e) return <div className="page"><div className="topbar"><Back to="/" label="Home" /><Back to="/gallery" label="Gallery" /></div><p className="subtitle">That event no longer exists.</p></div>
 
   const done = events.filter((x) => x.id !== e.id && x.actualGuests != null && x.date.startsWith(todayISO().slice(0, 4)))
   const withThis = [...done, { ...e, actualGuests: n }]
@@ -31,7 +31,7 @@ export default function PostEvent() {
   }
   return (
     <div className="page">
-      <Back to={`/events/${e.id}`} label="Event" />
+      <div className="topbar"><Back to="/" label="Home" /><Back to={`/events/${e.id}`} label="Event" /></div>
       <h1 className="title">Post-event update</h1>
       <p className="subtitle" style={{ marginBottom: 36 }}>{e.name} · {fmtShort(e.date)}. Takes about a minute.</p>
       <div className="form-grid">

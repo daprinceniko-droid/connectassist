@@ -100,7 +100,7 @@ function RundownEditor({ e }: { e: EventRec }) {
 
   return (
     <div className="page">
-      <div className="topbar"><Back to="/" label="Home" /><Link className="btn back" to="/gallery">Gallery</Link><Link className="btn back" to={`/events/${e.id}`}>Event page</Link></div>
+      <div className="topbar"><Back to="/" label="Home" /><Link className="btn back" to={`/events/${e.id}`}>Event page</Link></div>
       <div className="head" style={{ marginTop: 6 }}>
         <div><h1 className="title" style={{ marginBottom: 8 }}>Rundown - BEO</h1><p className="subtitle">{e.name} · {whenShort(e)} · {e.room}</p></div>
         <div className="actions">

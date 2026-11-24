@@ -73,7 +73,7 @@ export default function EventForm() {
   }
   useEffect(() => { const f = sp.get('from'); if (f && !editing) applyFrom(f) /* eslint-disable-next-line */ }, [])
 
-  if (id && !editing) return <div className="page"><Back to="/gallery" label="Gallery" /><p className="subtitle" style={{ marginTop: 24 }}>That event no longer exists.</p></div>
+  if (id && !editing) return <div className="page"><div className="topbar"><Back to="/" label="Home" /><Back to="/gallery" label="Gallery" /></div><p className="subtitle" style={{ marginTop: 24 }}>That event no longer exists.</p></div>
 
   const selected = contacts.filter((c) => contactIds.includes(c.id))
   const matches = contacts.filter((c) => !contactIds.includes(c.id) && (!q || `${c.name} ${c.category} ${c.speciality}`.toLowerCase().includes(q.toLowerCase())))
@@ -144,7 +144,10 @@ export default function EventForm() {
 
   return (
     <div className="page">
-      <Back to={editing ? `/events/${editing.id}` : '/'} label={editing ? 'Event' : 'Dashboard'} />
+      <div className="topbar">
+        <Back to="/" label="Home" />
+        {editing && <Back to={`/events/${editing.id}`} label="Event" />}
+      </div>
       <h1 className="title">{editing ? 'Edit event' : 'New event'}</h1>
       <p className="subtitle" style={{ marginBottom: 36 }}>
         {editing ? 'Change the basics of this event.' : 'The basics for this event. You build the timeline yourself in the rundown, or start from a past event to reuse its timeline.'}
@@ -206,7 +209,7 @@ export default function EventForm() {
               <select id="fp" className="select" value={needsFP ? 'yes' : 'no'} onChange={(e) => setNeedsFP(e.target.value === 'yes')}>
                 <option value="yes">Needed</option><option value="no">Not needed</option></select></div>
           </div>
-          <div className="field picker"><label htmlFor="v">DJ / vendors</label>
+          <div className="field picker"><label htmlFor="v">External</label>
             <input id="v" className="input" autoComplete="off" placeholder="Search the vendor directory…" value={q} onChange={(e) => { setQ(e.target.value); setOpen(true) }}
               onFocus={() => setOpen(true)} onBlur={() => setTimeout(() => setOpen(false), 150)} />
             {open && (

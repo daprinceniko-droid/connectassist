@@ -16,7 +16,7 @@ export default function EventPage() {
   const toast = useToast()
   const [editStaff, setEditStaff] = useState(false)
   const e = events.find((x) => x.id === id)
-  if (!e) return <div className="page"><Back to="/gallery" label="Gallery" /><p className="subtitle" style={{ marginTop: 24 }}>That event no longer exists.</p></div>
+  if (!e) return <div className="page"><div className="topbar"><Back to="/" label="Home" /><Back to="/gallery" label="Gallery" /></div><p className="subtitle" style={{ marginTop: 24 }}>That event no longer exists.</p></div>
 
   const series = e.seriesId && e.repeat ? events.filter((x) => x.seriesId === e.seriesId).sort((a, b) => a.date.localeCompare(b.date)) : []
   const extend = async () => {
@@ -38,7 +38,7 @@ export default function EventPage() {
 
   return (
     <div className="page">
-      <Back to="/gallery" label="Gallery" />
+      <div className="topbar"><Back to="/" label="Home" /><Back to="/gallery" label="Gallery" /></div>
       <div className="head" style={{ marginTop: 6 }}>
         <div>
           <h1 className="title" style={{ marginBottom: 8 }}>{e.name}</h1>
