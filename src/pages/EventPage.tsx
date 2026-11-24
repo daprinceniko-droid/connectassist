@@ -34,7 +34,7 @@ export default function EventPage() {
   const logged = e.actualGuests != null
   const share = logged ? pct(e.actualGuests!, e.expectedGuests) : null
   const upcoming = isUpcoming(e)
-  const chips = (list: typeof people) => list.length ? list.map((p) => <Link key={p.id} className="pill link" to={`/contacts?c=${p.id}`}>{p.name}</Link>) : <span style={{ fontWeight: 400, color: '#8a8a8a' }}>None</span>
+  const chips = (list: typeof people) => list.length ? list.map((p) => <Link key={p.id} className="pill link" to={`/contacts?c=${p.id}`}>{p.name}</Link>) : <span style={{ fontWeight: 400, color: 'var(--muted)' }}>None</span>
 
   return (
     <div className="page">
@@ -61,7 +61,7 @@ export default function EventPage() {
           </p>
           <div className="bar" role="progressbar" aria-valuenow={Math.min(100, share ?? 0)} aria-valuemin={0} aria-valuemax={100}><i style={{ width: `${Math.min(100, share ?? 0)}%` }} /></div>
           <hr className="rule" />
-          <span className="eyebrow" style={{ color: '#a8a8a8' }}>Post-event update</span>
+          <span className="eyebrow" style={{ color: 'var(--main-foreground)', opacity: .78 }}>Post-event update</span>
           {logged ? (
             <>
               <p>{e.rating ? <b style={{ color: '#fff' }}>{e.rating}. </b> : null}{e.reflection || 'No reflection added.'}</p>
@@ -113,7 +113,7 @@ export default function EventPage() {
                     <Link className="link-arrow" to={`/events/${e.id}/floorplan?back=event`}>Open ↗</Link>
                   </div>
                 </div>
-              )) : <div className="fp-preview" aria-hidden style={{ display: 'grid', placeItems: 'center', color: '#8a8a8a', fontSize: 14, aspectRatio: 2.2 }}>No floor plan saved yet</div>}
+              )) : <div className="fp-preview" aria-hidden style={{ display: 'grid', placeItems: 'center', color: 'var(--muted)', fontSize: 14, aspectRatio: 2.2 }}>No floor plan saved yet</div>}
               <Link className="link-arrow" to={`/events/${e.id}/floorplan?back=event`}>{floorPlans.length ? 'Manage rooms' : 'Create floor plan'} ↗</Link>
             </section>)}
           {e.todos.length > 0 && (
@@ -131,7 +131,7 @@ export default function EventPage() {
             </section>)}
           <section className="card" aria-label="Rundown - BEO">
             <div className="card-head"><span className="eyebrow">Rundown - BEO</span></div>
-            <div className="mini-rundown">{e.schedule.length === 0 ? <span style={{ color: '#8a8a8a' }}>No timeline yet</span> : e.schedule.slice(0, 4).map((s) => <div key={s.id}><b>{s.time}</b>{s.title}</div>)}</div>
+            <div className="mini-rundown">{e.schedule.length === 0 ? <span style={{ color: 'var(--muted)' }}>No timeline yet</span> : e.schedule.slice(0, 4).map((s) => <div key={s.id}><b>{s.time}</b>{s.title}</div>)}</div>
             <Link className="link-arrow" style={{ marginTop: 14 }} to={`/events/${e.id}/rundown`}>Open rundown ↗</Link>
           </section>
         </div>

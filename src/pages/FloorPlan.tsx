@@ -239,7 +239,7 @@ export default function FloorPlanPage() {
         <div className="stack">
           <section className="card dark" aria-label="Presets" style={{ padding: 24 }}>
             <h3 style={{ margin: 0, fontSize: 24 }}>Presets</h3>
-            <p style={{ color: '#a8a8a8', fontSize: 14, margin: '4px 0 14px' }}>Start from a saved layout</p>
+            <p style={{ color: 'var(--main-foreground)', opacity: .78, fontSize: 14, margin: '4px 0 14px' }}>Start from a saved layout</p>
             <div className="preset-list">
               {starters.map((s) => (
                 <button key={s.name} className={`preset ${plan.basedOn === s.name ? 'on' : ''}`} aria-pressed={plan.basedOn === s.name} onClick={() => applyPreset(s.name, s.items)}>

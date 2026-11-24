@@ -1,7 +1,8 @@
-import { useMemo, useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useStore } from '../state/StoreProvider'
 import { useAuth } from '../state/AuthProvider'
+import { applyPalette, getPaletteId, PALETTES, PALETTE_STORAGE_KEY, type PaletteId } from '../lib/palettes'
 import { addDays, fmtCal, monthGrid, monthName, parseISO, todayISO, weekdayLetters } from '../lib/dates'
 import { byDateAsc, lastDay, nextUp, whenShort } from '../lib/select'
 
@@ -11,6 +12,28 @@ export default function Dashboard() {
   const nav = useNavigate()
   const [q, setQ] = useState('')
   const [suggestionsOpen, setSuggestionsOpen] = useState(false)
+  const [paletteOpen, setPaletteOpen] = useState(false)
+  const palettePickerRef = useRef<HTMLDivElement>(null)
+  const [palette, setPalette] = useState<PaletteId>(() => getPaletteId(window.localStorage.getItem(PALETTE_STORAGE_KEY)))
+  useEffect(() => {
+    applyPalette(palette)
+    window.localStorage.setItem(PALETTE_STORAGE_KEY, palette)
+  }, [palette])
+  useEffect(() => {
+    if (!paletteOpen) return
+    const closeOnOutsideClick = (event: PointerEvent) => {
+      if (!palettePickerRef.current?.contains(event.target as Node)) setPaletteOpen(false)
+    }
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setPaletteOpen(false)
+    }
+    document.addEventListener('pointerdown', closeOnOutsideClick)
+    document.addEventListener('keydown', closeOnEscape)
+    return () => {
+      document.removeEventListener('pointerdown', closeOnOutsideClick)
+      document.removeEventListener('keydown', closeOnEscape)
+    }
+  }, [paletteOpen])
   const suggestionQuery = q.trim().toLowerCase()
   const suggestions = useMemo(() => {
     if (!suggestionQuery) return []
@@ -79,7 +102,38 @@ export default function Dashboard() {
             )}
           </div>
         </form>
-        <div className="who">{!demo && <button className="btn sm" onClick={signOut}>Sign out</button>}</div>
+        <div className="who">
+          <div className="theme-picker" ref={palettePickerRef}>
+            <button className="btn sm theme-toggle" aria-label="Change color scheme" title="Change color scheme" aria-expanded={paletteOpen} onClick={() => setPaletteOpen((open) => !open)}>
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M7 10.5 13.5 4l6.5 6.5-6.5 6.5H7a3 3 0 0 1 0-6h5" />
+                <path d="m13.5 4 6.5 6.5M7 17v3h12v-3" />
+              </svg>
+            </button>
+            {paletteOpen && (
+              <div className="theme-menu" aria-label="Color palettes">
+                <span className="theme-menu-title">Color scheme</span>
+                <div className="theme-options" role="group" aria-label="Color palettes">
+                  {PALETTES.map((option) => (
+                    <button
+                      type="button"
+                      key={option.id}
+                      className={`theme-option ${palette === option.id ? 'selected' : ''}`}
+                      aria-pressed={palette === option.id}
+                      onClick={() => setPalette(option.id)}
+                    >
+                      <span className="theme-swatches" aria-hidden="true">
+                        {option.colors.map((color, index) => <i key={index} style={{ backgroundColor: color }} />)}
+                      </span>
+                      <span>{option.name}{palette === option.id ? ' · Selected' : ''}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+          {!demo && <button className="btn sm" onClick={signOut}>Sign out</button>}
+        </div>
       </div>
 
       <div className="dash-grid">
@@ -99,7 +153,7 @@ export default function Dashboard() {
                     <Link className="btn white sm" to={`/events/${next.id}/floorplan?back=home`} onClick={(ev) => ev.stopPropagation()}>Add floor plan</Link>
                   </li>
                 )}
-                {todos.length === 0 && !missingPlan && <li style={{ color: '#a8a8a8' }}>Nothing to do.</li>}
+                {todos.length === 0 && !missingPlan && <li style={{ color: 'var(--main-foreground)', opacity: .72 }}>Nothing to do.</li>}
                 {todos.map((t) => (
                   <li key={t.id}>
                     <button aria-pressed={t.done} className={t.done ? 'done' : ''} onClick={(ev) => { ev.stopPropagation(); patchEvent(next.id, { todos: next.todos.map((x) => (x.id === t.id ? { ...x, done: !x.done } : x)) }) }}>

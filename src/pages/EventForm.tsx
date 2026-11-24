@@ -251,7 +251,7 @@ export default function EventForm() {
           {!editing && (
             <div className="card dark" style={{ padding: 24 }}>
               <h3 style={{ margin: 0, fontSize: 22 }}>Start from a past event</h3>
-              <p className="muted" style={{ margin: '4px 0 16px', color: '#a8a8a8', fontSize: 14 }}>Reuse its floor plan, room and vendors</p>
+              <p className="muted" style={{ margin: '4px 0 16px', color: 'var(--main-foreground)', opacity: .78, fontSize: 14 }}>Reuse its floor plan, room and vendors</p>
               <div style={{ display: 'flex', gap: 12 }}>
                 <select className="select" aria-label="Past event" style={{ background: '#222', color: '#fff', backgroundImage: undefined }} value={from} onChange={(e) => setFrom(e.target.value)}>
                   <option value="">None — start blank</option>{past.map((e) => <option key={e.id} value={e.id}>{e.name}</option>)}</select>

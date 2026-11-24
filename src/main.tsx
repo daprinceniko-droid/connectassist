@@ -6,6 +6,9 @@ import './styles.css'
 import App from './App'
 import { AuthProvider } from './state/AuthProvider'
 import { ToastProvider } from './state/ToastProvider'
+import { applyPalette, PALETTE_STORAGE_KEY } from './lib/palettes'
+
+applyPalette(window.localStorage.getItem(PALETTE_STORAGE_KEY))
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

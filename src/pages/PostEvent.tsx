@@ -43,7 +43,7 @@ export default function PostEvent() {
                 <button type="button" aria-label="One fewer" onClick={() => setN(Math.max(0, (n || 0) - 1))}>−</button>
                 <button type="button" className="plus-b" aria-label="One more" onClick={() => setN((n || 0) + 1)}>+</button>
               </div>
-              <span style={{ color: '#8a8a8a' }}>{e.expectedGuests ?? '—'} expected</span>
+              <span style={{ color: 'var(--card-muted)' }}>{e.expectedGuests ?? '—'} expected</span>
             </div></div>
           <div className="field"><span className="label">How did it go?</span>
             <div className="chip-row" role="group" aria-label="Rating">
@@ -63,7 +63,7 @@ export default function PostEvent() {
         <div className="stack">
           <div className="card dark" style={{ minHeight: 190 }}>
             <h3 style={{ margin: '0 0 10px', fontSize: 22 }}>Why this matters</h3>
-            <p style={{ color: '#bdbdbd', fontSize: 15, lineHeight: 1.5, margin: 0 }}>Real numbers feed the archive, so next time you plan with actual attendance instead of a guess.</p>
+            <p style={{ color: 'var(--main-foreground)', opacity: .82, fontSize: 15, lineHeight: 1.5, margin: 0 }}>Real numbers feed the archive, so next time you plan with actual attendance instead of a guess.</p>
           </div>
           <div className="card">
             <span className="eyebrow">This year so far</span>
