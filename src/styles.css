@@ -4,6 +4,7 @@
   --page-muted: var(--muted); --page-muted-2: var(--muted-2);
   --card-muted: var(--muted); --card-muted-2: var(--muted-2);
   --line: #e1e1e1; --r-card: 28px; --r-pill: 40px; --pad: 42px;
+  zoom: 0.8;
   font-family: 'Inter Variable', Inter, system-ui, -apple-system, 'Segoe UI', sans-serif;
   color: var(--page-foreground); background: var(--page-background, var(--white));
   -webkit-font-smoothing: antialiased;
